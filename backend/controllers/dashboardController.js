@@ -1,6 +1,12 @@
 import mongoose from "mongoose";
 import Member from "../models/Member.js";
 import Plan from "../models/Plan.js";
+import Gym from "../models/Gym.js";
+import {
+  DEFAULT_GYM_TIMEZONE,
+  getDateKeyInTimeZone,
+  getUtcDayBounds,
+} from "../utils/gymDate.js";
 
 export const getDashboardSummary = async (req, res) => {
   try {
@@ -13,9 +19,14 @@ export const getDashboardSummary = async (req, res) => {
       });
     }
 
-    const now = new Date();
-    const today = new Date(now);
-    today.setUTCHours(0, 0, 0, 0);
+    const gym = await Gym.findOne({ ownerId: tenantId })
+      .select("timezone")
+      .lean();
+    const todayKey = getDateKeyInTimeZone(
+      new Date(),
+      gym?.timezone || DEFAULT_GYM_TIMEZONE
+    );
+    const { start: today, end: tomorrow } = getUtcDayBounds(todayKey);
     const [summary] = await Member.aggregate([
       {
         $match: {
@@ -46,7 +57,7 @@ export const getDashboardSummary = async (req, res) => {
                 {
                   $and: [
                     { $eq: ["$active", true] },
-                    { $lte: ["$membershipStart", now] },
+                    { $lt: ["$membershipStart", tomorrow] },
                     { $gte: ["$membershipEnd", today] },
                   ],
                 },

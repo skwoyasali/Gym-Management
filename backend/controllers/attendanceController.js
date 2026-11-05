@@ -1,32 +1,36 @@
 import mongoose from "mongoose";
 import Attendance from "../models/Attendance.js";
 import Member from "../models/Member.js";
-
-const getUtcDay = (date) => {
-  const day = new Date(date);
-  day.setUTCHours(0, 0, 0, 0);
-  return day;
-};
+import Gym from "../models/Gym.js";
+import {
+  DEFAULT_GYM_TIMEZONE,
+  getDateKeyInTimeZone,
+  getUtcDayBounds,
+} from "../utils/gymDate.js";
 
 export const getTenantAttendance = async (req, res) => {
   try {
     const tenantId = req.user.tenantId || req.user.id;
-    const selectedDay = req.query.date ? new Date(req.query.date) : new Date();
+    const gym = await Gym.findOne({ ownerId: tenantId })
+      .select("timezone")
+      .lean();
+    const timeZone = gym?.timezone || DEFAULT_GYM_TIMEZONE;
+    const dateKey =
+      typeof req.query.date === "string"
+        ? req.query.date
+        : getDateKeyInTimeZone(new Date(), timeZone);
+    const bounds = getUtcDayBounds(dateKey);
 
-    if (Number.isNaN(selectedDay.getTime())) {
+    if (!bounds) {
       return res.status(400).json({
         success: false,
         message: "Invalid attendance date",
       });
     }
 
-    const start = getUtcDay(selectedDay);
-    const end = new Date(start);
-    end.setUTCDate(end.getUTCDate() + 1);
-
     const attendance = await Attendance.find({
       tenantId,
-      attendanceDate: { $gte: start, $lt: end },
+      attendanceDate: { $gte: bounds.start, $lt: bounds.end },
     })
       .populate("memberId", "name phone email")
       .sort({ checkedInAt: -1 })
@@ -35,6 +39,7 @@ export const getTenantAttendance = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: attendance,
+      date: dateKey,
     });
   } catch (error) {
     console.error("Get tenant attendance error:", error);
@@ -47,6 +52,14 @@ export const getTenantAttendance = async (req, res) => {
 
 export const getMemberAttendance = async (req, res) => {
   try {
+    const gym = await Gym.findOne({ ownerId: req.user.tenantId })
+      .select("timezone")
+      .lean();
+    const today = getDateKeyInTimeZone(
+      new Date(),
+      gym?.timezone || DEFAULT_GYM_TIMEZONE
+    );
+
     const attendance = await Attendance.find({
       tenantId: req.user.tenantId,
       memberId: req.user.memberId,
@@ -58,6 +71,7 @@ export const getMemberAttendance = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: attendance,
+      today,
     });
   } catch (error) {
     console.error("Get member attendance error:", error);
@@ -82,16 +96,21 @@ export const checkInMember = async (req, res) => {
       });
     }
 
-    const today = getUtcDay(new Date());
-    const tomorrow = new Date(today);
-    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const gym = await Gym.findOne({ ownerId: tenantId })
+      .select("timezone")
+      .lean();
+    const todayKey = getDateKeyInTimeZone(
+      new Date(),
+      gym?.timezone || DEFAULT_GYM_TIMEZONE
+    );
+    const { start: today, end: tomorrow } = getUtcDayBounds(todayKey);
 
     const member = await Member.findOne({
       _id: memberId,
       createdBy: tenantId,
       userId: req.user.id,
       active: true,
-      membershipStart: { $lte: new Date() },
+      membershipStart: { $lt: tomorrow },
       membershipEnd: { $gte: today },
     }).lean();
 
@@ -114,6 +133,7 @@ export const checkInMember = async (req, res) => {
         success: true,
         message: "Attendance recorded",
         data: attendance,
+        today: todayKey,
       });
     } catch (error) {
       if (error.code !== 11000) throw error;
@@ -128,6 +148,7 @@ export const checkInMember = async (req, res) => {
         success: false,
         message: "You have already checked in today",
         data: attendance,
+        today: todayKey,
       });
     }
   } catch (error) {

@@ -22,6 +22,7 @@ export default function MemberDashboard() {
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
   const [attendance, setAttendance] = useState([]);
+  const [todayKey, setTodayKey] = useState("");
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
   const [error, setError] = useState("");
@@ -30,13 +31,17 @@ export default function MemberDashboard() {
   const loadAttendance = useCallback(async () => {
     const response = await getMyAttendance();
     setAttendance(response.data.data);
+    setTodayKey(response.data.today);
   }, []);
 
   useEffect(() => {
     let active = true;
     getMyAttendance()
       .then((response) => {
-        if (active) setAttendance(response.data.data);
+        if (active) {
+          setAttendance(response.data.data);
+          setTodayKey(response.data.today);
+        }
       })
       .catch((requestError) => {
         if (!active) return;
@@ -82,7 +87,6 @@ export default function MemberDashboard() {
     navigate("/login", { replace: true });
   };
 
-  const todayKey = new Date().toISOString().slice(0, 10);
   const hasCheckedInToday = attendance.some(
     (record) =>
       new Date(record.attendanceDate).toISOString().slice(0, 10) === todayKey

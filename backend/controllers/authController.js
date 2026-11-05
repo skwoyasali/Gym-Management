@@ -121,11 +121,20 @@ export const register = async (req, res) => {
 // LOGIN
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, accountType } = req.body;
 
     if (typeof email !== "string" || typeof password !== "string") {
       return res.status(400).json({
         message: "Email and password are required",
+      });
+    }
+
+    if (
+      accountType !== undefined &&
+      !["admin", "member"].includes(accountType)
+    ) {
+      return res.status(400).json({
+        message: "Invalid account type",
       });
     }
 
@@ -164,6 +173,15 @@ export const login = async (req, res) => {
     if (!["admin", "member"].includes(role)) {
       return res.status(403).json({
         message: "This account role is not supported",
+      });
+    }
+
+    if (accountType && accountType !== role) {
+      return res.status(403).json({
+        message:
+          role === "member"
+            ? "This is a member account. Choose Member sign in."
+            : "This is a gym owner account. Choose Gym Owner sign in.",
       });
     }
 

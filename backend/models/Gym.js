@@ -49,6 +49,11 @@ const gymSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    timezone: {
+      type: String,
+      default: "Asia/Kolkata",
+      trim: true,
+    },
   },
   {
     timestamps: true,
