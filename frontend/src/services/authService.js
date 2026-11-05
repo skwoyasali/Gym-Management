@@ -2,7 +2,7 @@ import api from "./api";
 
 export const logout = () => {
   localStorage.removeItem("token");
-  localStorage.removeItem("user"); // if you store user data
+  localStorage.removeItem("user");
 };
 
 
@@ -14,5 +14,10 @@ export const loginUser = async (data) => {
 
 export const registerUser = async (data) => {
   const response = await api.post("/auth/register", data);
+  return response.data;
+};
+
+export const activateMember = async (data) => {
+  const response = await api.post("/auth/activate-member", data);
   return response.data;
 };

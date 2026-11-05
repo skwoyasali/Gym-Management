@@ -1,6 +1,9 @@
 import mongoose from "mongoose";
+import crypto from "crypto";
 import Member from "../models/Member.js";
 import Plan from "../models/Plan.js";
+import User from "../models/User.js";
+import Attendance from "../models/Attendance.js";
 
 // GET ALL MEMBERS
 export const getMembers = async (req, res) => {
@@ -273,9 +276,31 @@ export const updateMember = async (req, res) => {
       });
     }
 
+    const normalizedEmail = email?.trim().toLowerCase() || "";
+    let linkedUser;
+    if (member.userId) {
+      if (!normalizedEmail) {
+        return res.status(400).json({
+          success: false,
+          message: "Members with login accounts must keep an email address",
+        });
+      }
+
+      linkedUser = await User.findOne({
+        email: normalizedEmail,
+        _id: { $ne: member.userId },
+      }).lean();
+      if (linkedUser) {
+        return res.status(409).json({
+          success: false,
+          message: "An account with this email already exists",
+        });
+      }
+    }
+
     member.name = name.trim();
     member.phone = phone.trim();
-    member.email = email?.trim().toLowerCase() || undefined;
+    member.email = normalizedEmail || undefined;
     member.gender = gender || undefined;
     member.dateOfBirth = dateOfBirth || undefined;
     member.address = address?.trim() || undefined;
@@ -283,6 +308,13 @@ export const updateMember = async (req, res) => {
     member.membershipStart = startDate;
     member.membershipEnd = endDate;
     if (typeof active === "boolean") member.active = active;
+
+    if (member.userId) {
+      await User.updateOne(
+        { _id: member.userId, tenantId },
+        { $set: { email: normalizedEmail, username: name.trim() } }
+      );
+    }
 
     await member.save();
     await member.populate("plan", "name price duration");
@@ -305,6 +337,73 @@ export const updateMember = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to update member",
+    });
+  }
+};
+
+export const createMemberActivationCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = req.user.tenantId || req.user.id;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid member ID",
+      });
+    }
+
+    const member = await Member.findOne({
+      _id: id,
+      createdBy: tenantId,
+    });
+
+    if (!member) {
+      return res.status(404).json({
+        success: false,
+        message: "Member not found",
+      });
+    }
+
+    if (!member.email) {
+      return res.status(400).json({
+        success: false,
+        message: "Add an email address to this member before inviting them",
+      });
+    }
+
+    if (member.userId) {
+      return res.status(409).json({
+        success: false,
+        message: "This member already has a login account",
+      });
+    }
+
+    const activationCode = crypto.randomBytes(24).toString("base64url");
+    const activationCodeHash = crypto
+      .createHash("sha256")
+      .update(activationCode)
+      .digest("hex");
+
+    member.activationCodeHash = activationCodeHash;
+    member.activationCodeExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await member.save();
+
+    return res.status(201).json({
+      success: true,
+      message: "Member activation code created",
+      data: {
+        email: member.email,
+        activationCode,
+        expiresAt: member.activationCodeExpiresAt,
+      },
+    });
+  } catch (error) {
+    console.error("Create member activation code error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to create member activation code",
     });
   }
 };
@@ -336,6 +435,11 @@ export const deleteMember = async (req, res) => {
         message: "Member not found",
       });
     }
+
+    if (member.userId) {
+      await User.deleteOne({ _id: member.userId, tenantId });
+    }
+    await Attendance.deleteMany({ memberId: member._id, tenantId });
 
     return res.status(200).json({
       success: true,

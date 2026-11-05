@@ -68,6 +68,7 @@ export default function Register() {
       });
 
       localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.userData));
       dispatch(
         login({
           user: data.userData,

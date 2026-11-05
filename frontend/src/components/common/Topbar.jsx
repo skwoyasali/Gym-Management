@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import {
   Building2,
   ChevronDown,
@@ -8,23 +9,27 @@ import {
   Settings,
   UserRound,
 } from "lucide-react";
-import { logout } from "../../services/authService";
+import { logout as clearStoredAuth } from "../../services/authService";
+import { logout } from "../../store/authSlice";
 
 export default function Topbar({ onOpenSidebar }) {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const account = useSelector((state) => state.auth.user);
 
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
 
   const user = {
-    name: "Admin",
-    email: "admin@gympro.com",
-    role: "Super Admin",
+    name: account?.username || "Gym Admin",
+    email: account?.email || "",
+    role: account?.role === "admin" ? "Gym Owner" : "Admin",
   };
 
   const handleLogout = () => {
-    logout();
-    navigate("/login");
+    clearStoredAuth();
+    dispatch(logout());
+    navigate("/login", { replace: true });
   };
 
   useEffect(() => {
@@ -54,7 +59,7 @@ export default function Topbar({ onOpenSidebar }) {
         </div>
         <div className="min-w-0">
           <h1 className="truncate text-base font-bold tracking-tight text-slate-900 sm:text-lg">
-            Gym Management
+            {account?.tenantName || "Gym Management"}
           </h1>
           <p className="hidden text-xs text-slate-500 sm:block">
             Welcome to the Admin Dashboard

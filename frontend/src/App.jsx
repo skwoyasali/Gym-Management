@@ -6,10 +6,14 @@ import {
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import CompleteProfile from "./pages/auth/completeProfile";
+import ActivateMember from "./pages/auth/ActivateMember";
 
 import AdminLayout from "./components/layout/AppLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Members from "./pages/admin/Members";
+import Attendance from "./pages/admin/Attendance";
+import MemberDashboard from "./pages/member/MemberDashboard";
+import ProtectedRoute from "./routes/ProtectedRoute";
 // import Members from "./pages/admin/Members";
 // import Attendance from "./pages/admin/Attendance";
 // import Payments from "./pages/admin/Payments";
@@ -28,13 +32,26 @@ const router = createBrowserRouter([
   },
 
   {
+    path: "/activate-member",
+    element: <ActivateMember />,
+  },
+
+  {
     path: "/complete-profile",
-    element: <CompleteProfile />,
+    element: (
+      <ProtectedRoute allowedRoles={["admin"]}>
+        <CompleteProfile />
+      </ProtectedRoute>
+    ),
   },
 
   {
     path: "/admin",
-    element: <AdminLayout />,
+    element: (
+      <ProtectedRoute allowedRoles={["admin"]}>
+        <AdminLayout />
+      </ProtectedRoute>
+    ),
     children: [
       {
         index: true,
@@ -48,8 +65,21 @@ const router = createBrowserRouter([
         path: "members",
         element: <Members />,
       },
+      {
+        path: "attendance",
+        element: <Attendance />,
+      },
       
     ],
+  },
+
+  {
+    path: "/member/dashboard",
+    element: (
+      <ProtectedRoute allowedRoles={["member"]}>
+        <MemberDashboard />
+      </ProtectedRoute>
+    ),
   },
 
   {

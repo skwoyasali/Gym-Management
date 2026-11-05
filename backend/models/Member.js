@@ -16,7 +16,6 @@ const memberSchema = new mongoose.Schema(
       type: String,
       required: [true, "Phone number is required"],
       trim: true,
-      unique: true,
     },
 
     email: {
@@ -67,10 +66,31 @@ const memberSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      unique: true,
+      sparse: true,
+    },
+    activationCodeHash: {
+      type: String,
+      select: false,
+    },
+    activationCodeExpiresAt: {
+      type: Date,
+      select: false,
+    },
   },
   {
     timestamps: true,
   }
+);
+
+memberSchema.index({ createdBy: 1, phone: 1 }, { unique: true });
+
+memberSchema.index(
+  { activationCodeHash: 1 },
+  { unique: true, sparse: true }
 );
 
 const Member = mongoose.model("Member", memberSchema);

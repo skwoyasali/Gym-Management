@@ -1,8 +1,30 @@
 import User from "../models/User.js";
 import Gym from "../models/Gym.js";
+import Member from "../models/Member.js";
 
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
+
+const isStrongPassword = (password) =>
+  typeof password === "string" &&
+  password.length >= 8 &&
+  password.length <= 128 &&
+  /[A-Z]/.test(password) &&
+  /[a-z]/.test(password) &&
+  /[0-9]/.test(password);
+
+const createToken = ({ userId, tenantId, role, memberId }) =>
+  jwt.sign(
+    {
+      id: userId,
+      tenantId,
+      role,
+      ...(memberId ? { memberId } : {}),
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
 
 // REGISTER
 export const register = async (req, res) => {
@@ -36,13 +58,7 @@ export const register = async (req, res) => {
       });
     }
 
-    if (
-      password.length < 8 ||
-      password.length > 128 ||
-      !/[A-Z]/.test(password) ||
-      !/[a-z]/.test(password) ||
-      !/[0-9]/.test(password)
-    ) {
+    if (!isStrongPassword(password)) {
       return res.status(400).json({
         message:
           "Password must be 8–128 characters and include uppercase, lowercase, and a number",
@@ -59,22 +75,21 @@ export const register = async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
 
-    const user = await User.create({
+    const user = new User({
       username: normalizedUsername,
       email: normalizedEmail,
       password: hash,
+      role: "admin",
     });
+    user.tenantId = user._id;
+    await user.save();
 
     const tenantId = user._id.toString();
-    const token = jwt.sign(
-      {
-        id: tenantId,
-        tenantId,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = createToken({
+      userId: tenantId,
+      tenantId,
+      role: "admin",
+    });
 
     res.status(201).json({
       message: "Registered successfully",
@@ -83,7 +98,7 @@ export const register = async (req, res) => {
         _id: user._id,
         username: user.username,
         email: user.email,
-        role: user.role,
+        role: "admin",
         isProfileCompleted: user.isProfileCompleted,
         tenantId,
         tenantName: null,
@@ -130,29 +145,57 @@ export const login = async (req, res) => {
       });
     }
 
-    const tenantId = user._id.toString();
-    const gym = await Gym.findOne({ ownerId: user._id })
+    let updatedLegacyAccount = false;
+    if (user.role === "owner") {
+      user.role = "admin";
+      updatedLegacyAccount = true;
+    }
+
+    if (user.role === "admin" && !user.tenantId) {
+      user.tenantId = user._id;
+      updatedLegacyAccount = true;
+    }
+
+    if (updatedLegacyAccount) {
+      await user.save();
+    }
+
+    const role = user.role;
+    if (!["admin", "member"].includes(role)) {
+      return res.status(403).json({
+        message: "This account role is not supported",
+      });
+    }
+
+    const tenantId =
+      role === "admin"
+        ? (user.tenantId || user._id).toString()
+        : user.tenantId?.toString();
+    if (!tenantId || (role === "member" && !user.memberId)) {
+      return res.status(403).json({
+        message: "This account is not linked to an active gym membership",
+      });
+    }
+
+    const gym = await Gym.findOne({ ownerId: tenantId })
       .select("gymName")
       .lean();
 
-    const token = jwt.sign(
-      {
-        id: tenantId,
-        tenantId,
-        role: user.role,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "7d",
-      }
-    );
-       // Convert Mongoose document to plain object
+    const token = createToken({
+      userId: user._id.toString(),
+      tenantId,
+      role,
+      memberId: role === "member" ? user.memberId.toString() : null,
+    });
+
     const userData = user.toObject();
 
-    // Remove password
     delete userData.password;
+    userData.role = role;
     userData.tenantId = tenantId;
     userData.tenantName = gym?.gymName || null;
+    userData.isProfileCompleted =
+      role === "member" ? true : user.isProfileCompleted;
 
     res.status(200).json({
       token,
@@ -163,6 +206,129 @@ export const login = async (req, res) => {
 
     res.status(500).json({
       message: "Unable to sign in right now",
+    });
+  }
+};
+
+export const activateMember = async (req, res) => {
+  try {
+    const { email, activationCode, password } = req.body;
+
+    if (
+      typeof email !== "string" ||
+      typeof activationCode !== "string" ||
+      !isStrongPassword(password)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Enter your email, a valid activation code, and a strong password",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const activationCodeHash = crypto
+      .createHash("sha256")
+      .update(activationCode.trim())
+      .digest("hex");
+    const member = await Member.findOne({
+      email: normalizedEmail,
+      activationCodeHash,
+      activationCodeExpiresAt: { $gt: new Date() },
+      userId: { $exists: false },
+    })
+      .select("+activationCodeHash +activationCodeExpiresAt")
+      .lean();
+
+    if (!member) {
+      return res.status(400).json({
+        success: false,
+        message: "Activation code is invalid, expired, or already used",
+      });
+    }
+
+    const existingUser = await User.findOne({ email: normalizedEmail }).lean();
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists",
+      });
+    }
+
+    const user = new User({
+      username: member.name,
+      email: normalizedEmail,
+      password: await bcrypt.hash(password, 10),
+      role: "member",
+      tenantId: member.createdBy,
+      memberId: member._id,
+      isProfileCompleted: true,
+    });
+
+    await user.save();
+
+    const linkedMember = await Member.findOneAndUpdate(
+      {
+        _id: member._id,
+        activationCodeHash,
+        activationCodeExpiresAt: { $gt: new Date() },
+        userId: { $exists: false },
+      },
+      {
+        $set: { userId: user._id },
+        $unset: {
+          activationCodeHash: "",
+          activationCodeExpiresAt: "",
+        },
+      },
+      { new: true }
+    );
+
+    if (!linkedMember) {
+      await User.deleteOne({ _id: user._id });
+      return res.status(409).json({
+        success: false,
+        message: "This activation code has already been used",
+      });
+    }
+
+    const tenantId = member.createdBy.toString();
+    const gym = await Gym.findOne({ ownerId: tenantId })
+      .select("gymName")
+      .lean();
+    const token = createToken({
+      userId: user._id.toString(),
+      tenantId,
+      role: "member",
+      memberId: member._id.toString(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      token,
+      userData: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        role: "member",
+        isProfileCompleted: true,
+        tenantId,
+        tenantName: gym?.gymName || null,
+        memberId: member._id,
+      },
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "An account with this email already exists",
+      });
+    }
+
+    console.error("Member activation error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to activate this member account right now",
     });
   }
 };

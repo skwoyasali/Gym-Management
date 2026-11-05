@@ -43,6 +43,7 @@ export default function Login() {
       });
 
       localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.userData));
       dispatch(
         login({
           user: data.userData,
@@ -50,7 +51,9 @@ export default function Login() {
         })
       );
 
-      if (!data.userData.isProfileCompleted) {
+      if (data.userData.role === "member") {
+        navigate("/member/dashboard");
+      } else if (!data.userData.isProfileCompleted) {
         navigate("/complete-profile");
       } else {
         navigate("/admin/dashboard");
@@ -248,6 +251,16 @@ export default function Login() {
           >
             Create a gym account
           </Link>
+
+          <p className="mt-5 text-center text-sm text-slate-500">
+            Member with an activation code?{" "}
+            <Link
+              to="/activate-member"
+              className="font-semibold text-violet-700 hover:text-violet-800"
+            >
+              Activate your account
+            </Link>
+          </p>
 
           <p className="mt-8 text-center text-xs leading-5 text-slate-400">
             By continuing, you agree to keep your account credentials secure.

@@ -1,13 +1,22 @@
-// import { Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 
-// import { useSelector } from "react-redux";
+export default function ProtectedRoute({ children, allowedRoles = [] }) {
+  const { user, token } = useSelector((state) => state.auth);
 
-// export default function ProtectedRoute({ children }) {
-//   const user = useSelector((state) => state.auth.user);
+  if (!token || !user) {
+    return <Navigate to="/login" replace />;
+  }
 
-//   if (!user) {
-//     return <Navigate to="/login" />;
-//   }
+  const role = user.role === "owner" ? "admin" : user.role;
+  if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+    return (
+      <Navigate
+        to={role === "member" ? "/member/dashboard" : "/admin/dashboard"}
+        replace
+      />
+    );
+  }
 
-//   return children;
-// }
+  return children;
+}

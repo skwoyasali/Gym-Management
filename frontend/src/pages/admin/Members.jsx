@@ -1,9 +1,23 @@
 import AddMemberModal from "../../components/modals/AddMemberModal";
 
 import { useEffect, useState } from "react";
-import { Pencil, Phone, Trash2, UserPlus, Users } from "lucide-react";
+import {
+  Check,
+  Copy,
+  KeyRound,
+  Pencil,
+  Phone,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
 
-import { deleteMember, getMembers } from "../../services/memberService";
+import {
+  createMemberActivationCode,
+  deleteMember,
+  getMembers,
+} from "../../services/memberService";
 import { getPlans } from "../../services/planService";
 
 export default function Members() {
@@ -14,6 +28,9 @@ export default function Members() {
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [editingMember, setEditingMember] = useState(null);
   const [deletingMemberId, setDeletingMemberId] = useState(null);
+  const [invitingMemberId, setInvitingMemberId] = useState(null);
+  const [activationDetails, setActivationDetails] = useState(null);
+  const [copiedCode, setCopiedCode] = useState(false);
   const [actionError, setActionError] = useState("");
 
   const loadMembers = async () => {
@@ -83,6 +100,37 @@ export default function Members() {
     }
   };
 
+  const handleCreateActivationCode = async (member) => {
+    setActionError("");
+    setInvitingMemberId(member._id);
+    setCopiedCode(false);
+    try {
+      const response = await createMemberActivationCode(member._id);
+      setActivationDetails({
+        ...response.data.data,
+        memberName: member.name,
+      });
+    } catch (error) {
+      console.error("Create member activation code error:", error);
+      setActionError(
+        error.response?.data?.message ||
+          "Unable to create the member activation code"
+      );
+    } finally {
+      setInvitingMemberId(null);
+    }
+  };
+
+  const copyActivationCode = async () => {
+    try {
+      await navigator.clipboard.writeText(activationDetails.activationCode);
+      setCopiedCode(true);
+    } catch (error) {
+      console.error("Copy activation code error:", error);
+      setActionError("Could not copy the code. Please select and copy it.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -139,7 +187,7 @@ export default function Members() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-left">
+          <table className="w-full min-w-[680px] text-left">
             <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th scope="col" className="px-5 py-3 sm:px-6">Member</th>
@@ -196,6 +244,28 @@ export default function Members() {
                     </td>
                     <td className="px-5 py-4 text-right sm:px-6">
                       <div className="inline-flex items-center gap-1">
+                        {!member.userId && (
+                          <button
+                            type="button"
+                            onClick={() => handleCreateActivationCode(member)}
+                            disabled={invitingMemberId === member._id}
+                            aria-label={`Create member login code for ${member.name}`}
+                            title="Create member login code"
+                            className="rounded-lg p-2 text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {invitingMemberId === member._id ? (
+                              <span
+                                className="block h-4 w-4 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-600"
+                                aria-label="Creating activation code"
+                              />
+                            ) : (
+                              <KeyRound
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            )}
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => openEditModal(member)}
@@ -252,6 +322,69 @@ export default function Members() {
           onSuccess={handleMemberCreated}
           member={editingMember}
         />
+      )}
+      {activationDetails && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setActivationDetails(null);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="activation-code-title"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-emerald-700">
+                  Member login
+                </p>
+                <h2
+                  id="activation-code-title"
+                  className="mt-1 text-xl font-bold text-slate-900"
+                >
+                  Share this activation code
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActivationDetails(null)}
+                aria-label="Close activation code"
+                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              Share this one-time code with {activationDetails.memberName} at{" "}
+              <strong>{activationDetails.email}</strong>. It expires in 24
+              hours and can only be used once.
+            </p>
+            <code className="mt-5 block break-all rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm text-slate-800">
+              {activationDetails.activationCode}
+            </code>
+            <button
+              type="button"
+              onClick={copyActivationCode}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-100"
+            >
+              {copiedCode ? (
+                <Check className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Copy className="h-4 w-4" aria-hidden="true" />
+              )}
+              {copiedCode ? "Copied" : "Copy activation code"}
+            </button>
+            <p className="mt-3 text-center text-xs text-slate-500">
+              Member opens <span className="font-medium">/activate-member</span>{" "}
+              to set their password.
+            </p>
+          </section>
+        </div>
       )}
     </div>
   );

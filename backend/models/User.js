@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
@@ -19,7 +19,20 @@ const userSchema = new mongoose.Schema(
 
     role: {
       type: String,
-      default: "owner",
+      enum: ["admin", "member"],
+      default: "admin",
+    },
+
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+
+    memberId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Member",
+      unique: true,
+      sparse: true,
     },
     isProfileCompleted: {
       type: Boolean,
@@ -31,4 +44,6 @@ const userSchema = new mongoose.Schema(
   },
 );
 
-module.exports = mongoose.model("User", userSchema);
+const User = mongoose.model("User", userSchema);
+
+export default User;

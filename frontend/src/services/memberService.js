@@ -21,3 +21,7 @@ export const updateMember = async (id, memberData) => {
 export const deleteMember = async (id) => {
   return await api.delete(`/members/${id}`);
 };
+
+export const createMemberActivationCode = async (id) => {
+  return await api.post(`/members/${id}/activation-code`);
+};
