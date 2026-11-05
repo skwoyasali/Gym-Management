@@ -1,134 +1,258 @@
-import AppLayout from "../../components/layout/AppLayout";
-
-
-import {
-useEffect,
-useState
-}
-from "react";
-
-
-import {
-getMembers
-}
-from "../../services/memberService";
-
-
-export default function Members(){
-
-
-const [members,setMembers]=useState([]);
-
-
-
-useEffect(()=>{
-
-
-loadMembers();
-
-
-},[]);
-
-
-
-const loadMembers=async()=>{
-
-
-const res =
-await getMembers();
-
-
-setMembers(
-res.data
-);
-
-
-}
-
-
-
-return (
-
-<AppLayout>
-
-
-<h1 className="text-2xl font-bold">
-Members
-</h1>
-
-
-
-<div className="bg-white mt-5 p-5 rounded">
-
-
-<table className="w-full">
-
-
-<thead>
-
-<tr>
-
-<th>Name</th>
-
-<th>Phone</th>
-
-<th>Status</th>
-
-</tr>
-
-</thead>
-
-
-
-<tbody>
-
-
-{
-members.map(
-(member)=>(
-
-
-<tr key={member._id}>
-
-
-<td>
-{member.name}
-</td>
-
-
-<td>
-{member.phone}
-</td>
-
-
-<td>
-{member.active?
-"Active":
-"Expired"}
-</td>
-
-
-</tr>
-
-
-)
-)
-
-}
-
-
-</tbody>
-
-
-</table>
-
-
-</div>
-
-
-</AppLayout>
-
-)
-
-
+import AddMemberModal from "../../components/modals/AddMemberModal";
+
+import { useEffect, useState } from "react";
+import { Pencil, Phone, Trash2, UserPlus, Users } from "lucide-react";
+
+import { deleteMember, getMembers } from "../../services/memberService";
+import { getPlans } from "../../services/planService";
+
+export default function Members() {
+  const [members, setMembers] = useState([]);
+  const [plans, setPlans] = useState([]);
+  const [plansError, setPlansError] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [loadingMembers, setLoadingMembers] = useState(true);
+  const [editingMember, setEditingMember] = useState(null);
+  const [deletingMemberId, setDeletingMemberId] = useState(null);
+  const [actionError, setActionError] = useState("");
+
+  const loadMembers = async () => {
+    const res = await getMembers();
+
+    return res.data.data;
+  };
+
+  const loadPlans = async () => {
+    const res = await getPlans();
+
+    return res.data.data;
+  };
+
+  useEffect(() => {
+    loadMembers()
+      .then(setMembers)
+      .catch((error) => console.error("Load members error:", error))
+      .finally(() => setLoadingMembers(false));
+
+    loadPlans()
+      .then(setPlans)
+      .catch((error) => {
+        console.error("Load plans error:", error);
+        setPlansError(
+          error.response?.data?.message || "Failed to load membership plans"
+        );
+      });
+  }, []);
+
+  const handleMemberCreated = () => {
+    loadMembers()
+      .then(setMembers)
+      .catch((error) => console.error("Load members error:", error));
+  };
+
+  const openAddModal = () => {
+    setEditingMember(null);
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (member) => {
+    setEditingMember(member);
+    setShowAddModal(true);
+  };
+
+  const handleMemberDeleted = async (member) => {
+    const confirmed = window.confirm(
+      `Delete ${member.name}? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setActionError("");
+    setDeletingMemberId(member._id);
+    try {
+      await deleteMember(member._id);
+      setMembers((currentMembers) =>
+        currentMembers.filter((currentMember) => currentMember._id !== member._id)
+      );
+    } catch (error) {
+      console.error("Delete member error:", error);
+      setActionError(
+        error.response?.data?.message || "Failed to delete member"
+      );
+    } finally {
+      setDeletingMemberId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            Members
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            View and manage your gym membership roster.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={openAddModal}
+          disabled={Boolean(plansError) || plans.length === 0}
+          className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+        >
+          <UserPlus className="h-4 w-4" aria-hidden="true" />
+          Add Member
+        </button>
+      </header>
+
+      {plansError && (
+        <p
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          role="alert"
+        >
+          {plansError}
+        </p>
+      )}
+      {actionError && (
+        <p
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          role="alert"
+        >
+          {actionError}
+        </p>
+      )}
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+              <Users className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-slate-900">All members</h2>
+              <p className="text-sm text-slate-500">
+                {members.length} {members.length === 1 ? "member" : "members"}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] text-left">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <tr>
+                <th scope="col" className="px-5 py-3 sm:px-6">Member</th>
+                <th scope="col" className="px-5 py-3 sm:px-6">Phone</th>
+                <th scope="col" className="px-5 py-3 sm:px-6">Status</th>
+                <th scope="col" className="px-5 py-3 text-right sm:px-6">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {loadingMembers ? (
+                <tr>
+                  <td colSpan="4" className="px-6 py-12 text-center text-sm text-slate-500">
+                    Loading members...
+                  </td>
+                </tr>
+              ) : members.length > 0 ? (
+                members.map((member) => (
+                  <tr key={member._id} className="transition hover:bg-slate-50/80">
+                    <td className="px-5 py-4 sm:px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-700">
+                          {member.name?.trim().charAt(0).toUpperCase() || "?"}
+                        </div>
+                        <span className="font-medium text-slate-900">
+                          {member.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 sm:px-6">
+                      <a
+                        href={`tel:${member.phone}`}
+                        className="inline-flex items-center gap-2 text-sm text-slate-600 transition hover:text-indigo-600"
+                      >
+                        <Phone className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                        {member.phone}
+                      </a>
+                    </td>
+                    <td className="px-5 py-4 sm:px-6">
+                      <span
+                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                          member.active
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-amber-50 text-amber-700"
+                        }`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            member.active ? "bg-emerald-500" : "bg-amber-500"
+                          }`}
+                        />
+                        {member.active ? "Active" : "Expired"}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right sm:px-6">
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(member)}
+                          aria-label={`Edit ${member.name}`}
+                          title="Edit member"
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-100"
+                        >
+                          <Pencil className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleMemberDeleted(member)}
+                          disabled={deletingMemberId === member._id}
+                          aria-label={`Delete ${member.name}`}
+                          title="Delete member"
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {deletingMemberId === member._id ? (
+                            <span
+                              className="block h-4 w-4 animate-spin rounded-full border-2 border-rose-300 border-t-rose-600"
+                              aria-label="Deleting member"
+                            />
+                          ) : (
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" className="px-6 py-14 text-center">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
+                      <Users className="h-6 w-6" aria-hidden="true" />
+                    </div>
+                    <p className="mt-3 font-medium text-slate-900">No members yet</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Add your first member to get started.
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {showAddModal && (
+        <AddMemberModal
+          key={editingMember?._id || "new-member"}
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          plans={plans}
+          onSuccess={handleMemberCreated}
+          member={editingMember}
+        />
+      )}
+    </div>
+  );
 }

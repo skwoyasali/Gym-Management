@@ -1,44 +1,78 @@
-const mongoose=require("mongoose");
+// models/Member.js
 
+import mongoose from "mongoose";
 
-const memberSchema=new mongoose.Schema({
+const memberSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, "Member name is required"],
+      trim: true,
+      minlength: 2,
+      maxlength: 100,
+    },
 
+    phone: {
+      type: String,
+      required: [true, "Phone number is required"],
+      trim: true,
+      unique: true,
+    },
 
-name:String,
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      sparse: true,
+    },
 
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+    },
 
-phone:String,
+    dateOfBirth: {
+      type: Date,
+    },
 
+    address: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
 
-email:String,
+    plan: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Plan",
+      required: true,
+    },
 
+    membershipStart: {
+      type: Date,
+      required: true,
+    },
 
-plan:{
-type:String,
-default:"Monthly"
-},
+    membershipEnd: {
+      type: Date,
+      required: true,
+    },
 
+    active: {
+      type: Boolean,
+      default: true,
+    },
 
-joinDate:{
-type:Date,
-default:Date.now
-},
-
-
-expiryDate:Date,
-
-
-active:{
-type:Boolean,
-default:true
-}
-
-
-});
-
-
-module.exports =
-mongoose.model(
-"Member",
-memberSchema
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
 );
+
+const Member = mongoose.model("Member", memberSchema);
+
+export default Member;  

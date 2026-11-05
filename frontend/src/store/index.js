@@ -1,21 +1,12 @@
-import {
-configureStore
-}
-from "@reduxjs/toolkit";
-
+import { configureStore } from "@reduxjs/toolkit";
 
 import authReducer from "./authSlice";
 import memberReducer from "./memberSlice";
 
-
 export default configureStore({
+  reducer: {
+    auth: authReducer,
 
-reducer:{
-
-auth:authReducer,
-
-members:memberReducer
-
-}
-
+    members: memberReducer,
+  },
 });

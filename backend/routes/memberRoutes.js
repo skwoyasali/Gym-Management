@@ -1,46 +1,24 @@
-const router=require("express").Router();
+import express from "express";
 
+import {
+  getMembers,
+  addMember,
+  updateMember,
+  deleteMember,
+} from "../controllers/memberController.js";
 
-const {
+import authMiddleware from "../middleware/authMiddleware.js";
 
-getMembers,
+const router = express.Router();
 
-addMember,
+router.use(authMiddleware);
 
-deleteMember
+router.get("/", getMembers);
 
+router.post("/", addMember);
 
-}=require("../controllers/memberController");
+router.put("/:id", updateMember);
 
+router.delete("/:id", deleteMember);
 
-
-const auth =
-require("../middleware/authMiddleware");
-
-
-
-router.get(
-"/",
-auth,
-getMembers
-);
-
-
-
-router.post(
-"/",
-auth,
-addMember
-);
-
-
-
-router.delete(
-"/:id",
-auth,
-deleteMember
-);
-
-
-
-module.exports=router;
+export default router;

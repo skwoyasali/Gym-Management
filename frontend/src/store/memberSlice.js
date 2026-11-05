@@ -1,61 +1,33 @@
-import {
-createSlice
-}
-from "@reduxjs/toolkit";
+import { createSlice } from "@reduxjs/toolkit";
 
+const memberSlice = createSlice({
+  name: "members",
 
-const memberSlice=createSlice({
+  initialState: {
+    list: [],
+  },
 
-name:"members",
+  reducers: {
+    setMembers: (state, action) => {
+      state.list = action.payload;
+    },
 
-initialState:{
+    addMember: (state, action) => {
+      state.list.push(action.payload);
+    },
 
-list:[]
-
-},
-
-
-reducers:{
-
-
-setMembers:(state,action)=>{
-
-state.list=action.payload;
-
-},
-
-
-addMember:(state,action)=>{
-
-state.list.push(action.payload);
-
-},
-
-
-removeMember:(state,action)=>{
-
-state.list =
-state.list.filter(
-m=>m._id!==action.payload
-)
-
-}
-
-}
-
-
-})
-
+    removeMember: (state, action) => {
+      state.list = state.list.filter((m) => m._id !== action.payload);
+    },
+  },
+});
 
 export const {
+  setMembers,
 
-setMembers,
+  addMember,
 
-addMember,
-
-removeMember
-
-}=memberSlice.actions;
-
+  removeMember,
+} = memberSlice.actions;
 
 export default memberSlice.reducer;
