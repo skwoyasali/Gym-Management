@@ -50,7 +50,7 @@ export default function Login() {
       );
 
       if (data.userData.role === "member") {
-        navigate("/member/dashboard");
+        navigate("/member/check-in");
       } else if (!data.userData.isProfileCompleted) {
         navigate("/complete-profile");
       } else {

@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Check,
   Copy,
+  History,
   KeyRound,
   Pencil,
   Phone,
@@ -21,6 +22,7 @@ import {
   deleteMember,
   getMembers,
 } from "../../services/memberService";
+import { getMemberRechargeHistory } from "../../services/rechargeService";
 import { getPlans } from "../../services/planService";
 
 export default function Members() {
@@ -45,6 +47,9 @@ export default function Members() {
   const [deletingMemberId, setDeletingMemberId] = useState(null);
   const [invitingMemberId, setInvitingMemberId] = useState(null);
   const [activationDetails, setActivationDetails] = useState(null);
+  const [historyDetails, setHistoryDetails] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
   const [copiedCode, setCopiedCode] = useState(false);
   const [actionError, setActionError] = useState("");
 
@@ -164,6 +169,26 @@ export default function Members() {
       );
     } finally {
       setInvitingMemberId(null);
+    }
+  };
+
+  const handleViewRechargeHistory = async (member) => {
+    setHistoryDetails({ member, records: [] });
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const response = await getMemberRechargeHistory(member._id);
+      setHistoryDetails({
+        member: response.data.data.member,
+        records: response.data.data.history,
+      });
+    } catch (error) {
+      console.error("Load member recharge history error:", error);
+      setHistoryError(
+        error.response?.data?.message || "Unable to load recharge history"
+      );
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -404,6 +429,15 @@ export default function Members() {
                         )}
                         <button
                           type="button"
+                          onClick={() => handleViewRechargeHistory(member)}
+                          aria-label={`View recharge history for ${member.name}`}
+                          title="Recharge history"
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-violet-50 hover:text-violet-600 focus:outline-none focus:ring-4 focus:ring-violet-100"
+                        >
+                          <History className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => openEditModal(member)}
                           aria-label={`Edit ${member.name}`}
                           title="Edit member"
@@ -560,6 +594,144 @@ export default function Members() {
               Member opens <span className="font-medium">/activate-member</span>{" "}
               to set their password.
             </p>
+          </section>
+        </div>
+      )}
+      {historyDetails && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setHistoryDetails(null);
+              setHistoryError("");
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="member-recharge-history-title"
+            className="max-h-[min(85vh,800px)] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+          >
+            <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
+              <div>
+                <p className="text-sm font-semibold text-indigo-600">
+                  Member profile
+                </p>
+                <h2
+                  id="member-recharge-history-title"
+                  className="mt-1 text-lg font-bold text-slate-900"
+                >
+                  {historyDetails.member.name}&apos;s recharge history
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryDetails(null);
+                  setHistoryError("");
+                }}
+                aria-label="Close recharge history"
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </header>
+            {historyError && (
+              <p
+                className="m-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+                role="alert"
+              >
+                {historyError}
+              </p>
+            )}
+            {historyLoading ? (
+              <p className="px-6 py-12 text-center text-sm text-slate-500">
+                Loading recharge history...
+              </p>
+            ) : historyDetails.records.length ? (
+              <div className="overflow-auto">
+                <table className="w-full min-w-[900px] text-left text-sm">
+                  <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <tr>
+                      <th className="px-5 py-3">Plan</th>
+                      <th className="px-5 py-3">Recharge date</th>
+                      <th className="px-5 py-3">Membership period</th>
+                      <th className="px-5 py-3">Amount</th>
+                      <th className="px-5 py-3">Payment</th>
+                      <th className="px-5 py-3">Approval</th>
+                      <th className="px-5 py-3">Reference</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {historyDetails.records.map((record) => (
+                      <tr key={record._id}>
+                        <td className="px-5 py-4">
+                          <p className="font-medium text-slate-900">
+                            {record.planName}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {record.durationMonths}{" "}
+                            {record.durationMonths === 1 ? "month" : "months"}
+                          </p>
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">
+                          {new Intl.DateTimeFormat("en", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            timeZone: "UTC",
+                          }).format(new Date(record.rechargedAt))}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">
+                          {new Intl.DateTimeFormat("en", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            timeZone: "UTC",
+                          }).format(new Date(record.membershipStart))}
+                          {" – "}
+                          {new Intl.DateTimeFormat("en", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            timeZone: "UTC",
+                          }).format(new Date(record.membershipEnd))}
+                        </td>
+                        <td className="px-5 py-4 font-medium text-slate-800">
+                          ₹{Number(record.amount).toLocaleString("en-IN")}
+                        </td>
+                        <td className="px-5 py-4">
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              record.paymentStatus === "verified"
+                                ? "bg-emerald-50 text-emerald-700"
+                                : "bg-slate-100 text-slate-600"
+                            }`}
+                          >
+                            {record.paymentStatus === "verified"
+                              ? "Verified"
+                              : "Not recorded"}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                            Approved
+                          </span>
+                        </td>
+                        <td className="max-w-40 truncate px-5 py-4 text-slate-600">
+                          {record.transactionReference || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="px-6 py-12 text-center text-sm text-slate-500">
+                No recharge history recorded for this member yet.
+              </p>
+            )}
           </section>
         </div>
       )}

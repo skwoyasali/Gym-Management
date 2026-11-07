@@ -9,13 +9,23 @@ import CompleteProfile from "./pages/auth/completeProfile";
 import ActivateMember from "./pages/auth/ActivateMember";
 
 import AdminLayout from "./components/layout/AppLayout";
+import MemberLayout from "./components/layout/MemberLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Members from "./pages/admin/Members";
 import Attendance from "./pages/admin/Attendance";
-import Plans from "./pages/admin/Plans";
 import MemberDashboard from "./pages/member/MemberDashboard";
+import MemberCheckIn from "./pages/member/MemberCheckIn";
 import Landing from "./pages/Landing";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import {
+  PlansRoute,
+  RechargeRequestsRoute,
+  SettingsRoute,
+} from "./routes/AdminLazyPages";
+import {
+  RechargeHistoryRoute,
+  RechargePlanRoute,
+} from "./routes/MemberLazyPages";
 // import Members from "./pages/admin/Members";
 // import Attendance from "./pages/admin/Attendance";
 // import Payments from "./pages/admin/Payments";
@@ -78,18 +88,48 @@ const router = createBrowserRouter([
       },
       {
         path: "plans",
-        element: <Plans />,
+        element: <PlansRoute />,
+      },
+      {
+        path: "recharge-requests",
+        element: <RechargeRequestsRoute />,
+      },
+      {
+        path: "settings",
+        element: <SettingsRoute />,
       },
     ],
   },
 
   {
-    path: "/member/dashboard",
+    path: "/member",
     element: (
       <ProtectedRoute allowedRoles={["member"]}>
-        <MemberDashboard />
+        <MemberLayout />
       </ProtectedRoute>
     ),
+    children: [
+      {
+        index: true,
+        element: <Navigate to="check-in" replace />,
+      },
+      {
+        path: "dashboard",
+        element: <MemberDashboard />,
+      },
+      {
+        path: "recharge",
+        element: <RechargePlanRoute />,
+      },
+      {
+        path: "history",
+        element: <RechargeHistoryRoute />,
+      },
+      {
+        path: "check-in",
+        element: <MemberCheckIn />,
+      },
+    ],
   },
 
   {

@@ -17,6 +17,7 @@ backend/.env
 frontend/dist/
 frontend/build/
 backend/dist/
+backend/private-uploads/
 
 # =========================
 # Logs

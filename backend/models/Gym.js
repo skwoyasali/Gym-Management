@@ -1,5 +1,16 @@
 import mongoose from "mongoose";
 
+const upiPaymentSchema = new mongoose.Schema(
+  {
+    upiId: { type: String, trim: true, maxlength: 120 },
+    receiverName: { type: String, trim: true, maxlength: 120 },
+    paymentNumber: { type: String, trim: true, maxlength: 30 },
+    qrStorageKey: { type: String, select: false },
+    instructions: { type: String, trim: true, maxlength: 500 },
+  },
+  { _id: false }
+);
+
 const gymSchema = new mongoose.Schema(
   {
     ownerId: {
@@ -53,6 +64,10 @@ const gymSchema = new mongoose.Schema(
       type: String,
       default: "Asia/Kolkata",
       trim: true,
+    },
+    upiPayment: {
+      type: upiPaymentSchema,
+      default: () => ({}),
     },
   },
   {

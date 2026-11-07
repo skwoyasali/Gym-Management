@@ -10,6 +10,7 @@ import planRoutes from "./routes/planRoutes.js";
 import gymRoutes from "./routes/gymRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 import attendanceRoutes from "./routes/attendanceRoutes.js";
+import rechargeRoutes from "./routes/rechargeRoutes.js";
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ app.use("/api/plans", planRoutes);
 app.use("/api/gym", gymRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/recharges", rechargeRoutes);
 
 app.get("/", (req, res) => {
   res.send("Gym API Running");

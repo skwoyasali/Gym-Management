@@ -5,6 +5,8 @@ import {
   CreditCard,
   Dumbbell,
   LayoutDashboard,
+  ReceiptText,
+  Settings,
   Users,
   UserRoundCog,
   X,
@@ -16,6 +18,8 @@ const menuItems = [
   { name: "Attendance", path: "/admin/attendance", icon: BarChart3 },
   { name: "Payments", path: "/admin/payments", icon: CreditCard },
   { name: "Plans", path: "/admin/plans", icon: Dumbbell },
+  { name: "Recharge Requests", path: "/admin/recharge-requests", icon: ReceiptText },
+  { name: "Settings", path: "/admin/settings", icon: Settings },
   { name: "Trainers", path: "/admin/trainers", icon: UserRoundCog },
 ];
 

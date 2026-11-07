@@ -12,7 +12,7 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
   if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
     return (
       <Navigate
-        to={role === "member" ? "/member/dashboard" : "/admin/dashboard"}
+        to={role === "member" ? "/member/check-in" : "/admin/dashboard"}
         replace
       />
     );

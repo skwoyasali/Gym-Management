@@ -68,7 +68,7 @@ export default function ActivateMember() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.userData));
       dispatch(login({ user: data.userData, token: data.token }));
-      navigate("/member/dashboard", { replace: true });
+      navigate("/member/check-in", { replace: true });
     } catch (requestError) {
       setError(
         requestError.response?.data?.message ||
