@@ -7,9 +7,17 @@ import {
   Dumbbell,
   IndianRupee,
   Loader2,
+  Pencil,
   Plus,
+  Trash2,
+  X,
 } from "lucide-react";
-import { createPlan, getPlans } from "../../services/planService";
+import {
+  createPlan,
+  deletePlan,
+  getPlans,
+  updatePlan,
+} from "../../services/planService";
 
 const currencyFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -24,6 +32,8 @@ export default function Plans() {
   const [formData, setFormData] = useState(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState(null);
+  const [deletingPlanId, setDeletingPlanId] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -60,6 +70,24 @@ export default function Plans() {
     setSuccess("");
   };
 
+  const handleEdit = (plan) => {
+    setEditingPlanId(plan._id);
+    setFormData({
+      name: plan.name,
+      price: String(plan.price),
+      duration: String(plan.duration),
+    });
+    setError("");
+    setSuccess("");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPlanId(null);
+    setFormData(initialForm);
+    setError("");
+    setSuccess("");
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError("");
@@ -67,28 +95,59 @@ export default function Plans() {
     setSaving(true);
 
     try {
-      const response = await createPlan({
+      const planData = {
         name: formData.name.trim(),
         price: Number(formData.price),
         duration: Number(formData.duration),
-      });
+      };
+      const response = editingPlanId
+        ? await updatePlan(editingPlanId, planData)
+        : await createPlan(planData);
 
       setPlans((currentPlans) =>
-        [...currentPlans, response.data.data].sort(
+        [
+          ...currentPlans.filter((plan) => plan._id !== response.data.data._id),
+          response.data.data,
+        ].sort(
           (first, second) => first.duration - second.duration
         )
       );
       setFormData(initialForm);
-      setSuccess(
-        "Plan created. It is now available when you add or edit a member."
-      );
+      setSuccess(editingPlanId ? "Plan updated successfully." : "Plan created. It is now available when you add or edit a member.");
+      setEditingPlanId(null);
     } catch (requestError) {
       setError(
         requestError.response?.data?.message ||
-          "Unable to create the membership plan."
+          `Unable to ${editingPlanId ? "update" : "create"} the membership plan.`
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async (plan) => {
+    if (!window.confirm(`Delete the "${plan.name}" plan? This cannot be undone.`)) {
+      return;
+    }
+
+    setError("");
+    setSuccess("");
+    setDeletingPlanId(plan._id);
+
+    try {
+      await deletePlan(plan._id);
+      setPlans((currentPlans) =>
+        currentPlans.filter((currentPlan) => currentPlan._id !== plan._id)
+      );
+      if (editingPlanId === plan._id) handleCancelEdit();
+      setSuccess("Plan deleted successfully.");
+    } catch (requestError) {
+      setError(
+        requestError.response?.data?.message ||
+          "Unable to delete the membership plan."
+      );
+    } finally {
+      setDeletingPlanId(null);
     }
   };
 
@@ -131,9 +190,13 @@ export default function Plans() {
               <Plus className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
-              <h2 className="font-semibold text-slate-900">Create a plan</h2>
+              <h2 className="font-semibold text-slate-900">
+                {editingPlanId ? "Edit plan" : "Create a plan"}
+              </h2>
               <p className="mt-0.5 text-sm text-slate-500">
-                Make a membership option for your gym.
+                {editingPlanId
+                  ? "Update the plan details for your gym."
+                  : "Make a membership option for your gym."}
               </p>
             </div>
           </div>
@@ -220,8 +283,25 @@ export default function Plans() {
               ) : (
                 <Plus className="h-4 w-4" aria-hidden="true" />
               )}
-              {saving ? "Creating plan..." : "Create plan"}
+              {saving
+                ? editingPlanId
+                  ? "Saving changes..."
+                  : "Creating plan..."
+                : editingPlanId
+                  ? "Save changes"
+                  : "Create plan"}
             </button>
+            {editingPlanId && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                disabled={saving}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+                Cancel editing
+              </button>
+            )}
           </form>
 
           <div className="mt-5 rounded-xl bg-indigo-50/70 p-4">
@@ -273,9 +353,40 @@ export default function Plans() {
                       </p>
                     </div>
                   </div>
-                  <p className="pl-[3.25rem] text-sm font-semibold text-slate-800 sm:pl-0">
-                    {currencyFormatter.format(plan.price)}
-                  </p>
+                  <div className="flex items-center justify-between gap-3 pl-[3.25rem] sm:pl-0">
+                    <p className="text-sm font-semibold text-slate-800">
+                      {currencyFormatter.format(plan.price)}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(plan)}
+                        disabled={saving || Boolean(deletingPlanId)}
+                        aria-label={`Edit ${plan.name} plan`}
+                        title="Edit plan"
+                        className="rounded-lg p-2 text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(plan)}
+                        disabled={saving || Boolean(deletingPlanId)}
+                        aria-label={`Delete ${plan.name} plan`}
+                        title="Delete plan"
+                        className="rounded-lg p-2 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600 focus:outline-none focus:ring-4 focus:ring-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {deletingPlanId === plan._id ? (
+                          <Loader2
+                            className="h-4 w-4 animate-spin"
+                            aria-label="Deleting plan"
+                          />
+                        ) : (
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>

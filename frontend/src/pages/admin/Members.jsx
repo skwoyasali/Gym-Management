@@ -2,11 +2,14 @@ import AddMemberModal from "../../components/modals/AddMemberModal";
 
 import { useEffect, useState } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
   Check,
   Copy,
   KeyRound,
   Pencil,
   Phone,
+  Search,
   Trash2,
   UserPlus,
   Users,
@@ -22,22 +25,28 @@ import { getPlans } from "../../services/planService";
 
 export default function Members() {
   const [members, setMembers] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    total: 0,
+    totalPages: 0,
+  });
   const [plans, setPlans] = useState([]);
   const [plansError, setPlansError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [loadingMembers, setLoadingMembers] = useState(true);
+  const [membersError, setMembersError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [planFilter, setPlanFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [refreshMembers, setRefreshMembers] = useState(0);
   const [editingMember, setEditingMember] = useState(null);
   const [deletingMemberId, setDeletingMemberId] = useState(null);
   const [invitingMemberId, setInvitingMemberId] = useState(null);
   const [activationDetails, setActivationDetails] = useState(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [actionError, setActionError] = useState("");
-
-  const loadMembers = async () => {
-    const res = await getMembers();
-
-    return res.data.data;
-  };
 
   const loadPlans = async () => {
     const res = await getPlans();
@@ -46,10 +55,43 @@ export default function Members() {
   };
 
   useEffect(() => {
-    loadMembers()
-      .then(setMembers)
-      .catch((error) => console.error("Load members error:", error))
-      .finally(() => setLoadingMembers(false));
+    const searchTimeout = window.setTimeout(() => {
+      setAppliedSearch(searchTerm.trim());
+    }, 250);
+
+    return () => window.clearTimeout(searchTimeout);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    let active = true;
+
+    getMembers(page, 10, {
+      search: appliedSearch,
+      status: statusFilter === "all" ? "" : statusFilter,
+      plan: planFilter,
+    })
+      .then((response) => {
+        if (!active) return;
+        setMembers(response.data.data);
+        setPagination(response.data.pagination);
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error("Load members error:", error);
+        setMembersError(
+          error.response?.data?.message || "Failed to load members"
+        );
+      })
+      .finally(() => {
+        if (active) setLoadingMembers(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [page, appliedSearch, statusFilter, planFilter, refreshMembers]);
+
+  useEffect(() => {
 
     loadPlans()
       .then(setPlans)
@@ -62,9 +104,10 @@ export default function Members() {
   }, []);
 
   const handleMemberCreated = () => {
-    loadMembers()
-      .then(setMembers)
-      .catch((error) => console.error("Load members error:", error));
+    setLoadingMembers(true);
+    setMembersError("");
+    if (page !== 1) setPage(1);
+    setRefreshMembers((current) => current + 1);
   };
 
   const openAddModal = () => {
@@ -87,9 +130,12 @@ export default function Members() {
     setDeletingMemberId(member._id);
     try {
       await deleteMember(member._id);
-      setMembers((currentMembers) =>
-        currentMembers.filter((currentMember) => currentMember._id !== member._id)
-      );
+      setLoadingMembers(true);
+      setMembersError("");
+      if (members.length === 1 && page > 1) {
+        setPage((currentPage) => currentPage - 1);
+      }
+      setRefreshMembers((current) => current + 1);
     } catch (error) {
       console.error("Delete member error:", error);
       setActionError(
@@ -170,6 +216,14 @@ export default function Members() {
           {actionError}
         </p>
       )}
+      {membersError && (
+        <p
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          role="alert"
+        >
+          {membersError}
+        </p>
+      )}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
@@ -180,10 +234,70 @@ export default function Members() {
             <div>
               <h2 className="font-semibold text-slate-900">All members</h2>
               <p className="text-sm text-slate-500">
-                {members.length} {members.length === 1 ? "member" : "members"}
+                {pagination.total}{" "}
+                {pagination.total === 1 ? "member" : "members"}
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="flex flex-col gap-3 border-b border-slate-100 bg-white px-5 py-4 sm:flex-row sm:items-center sm:px-6">
+          <label className="relative block flex-1">
+            <span className="sr-only">Search members by name or phone</span>
+            <Search
+              className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => {
+                setLoadingMembers(true);
+                setMembersError("");
+                setSearchTerm(event.target.value);
+                setPage(1);
+              }}
+              placeholder="Search by name or phone number"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+            <span>Status</span>
+            <select
+              value={statusFilter}
+              onChange={(event) => {
+                setLoadingMembers(true);
+                setMembersError("");
+                setStatusFilter(event.target.value);
+                setPage(1);
+              }}
+              className="min-w-36 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+            >
+              <option value="all">All members</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+            <span>Plan</span>
+            <select
+              value={planFilter}
+              onChange={(event) => {
+                setLoadingMembers(true);
+                setMembersError("");
+                setPlanFilter(event.target.value);
+                setPage(1);
+              }}
+              className="min-w-40 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+            >
+              <option value="">All plans</option>
+              {plans.map((plan) => (
+                <option key={plan._id} value={plan._id}>
+                  {plan.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="overflow-x-auto">
@@ -261,7 +375,7 @@ export default function Members() {
                             member.active ? "bg-emerald-500" : "bg-amber-500"
                           }`}
                         />
-                        {member.active ? "Active" : "Expired"}
+                        {member.active ? "Active" : "Inactive"}
                       </span>
                     </td>
                     <td className="px-5 py-4 text-right sm:px-6">
@@ -324,9 +438,15 @@ export default function Members() {
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
                       <Users className="h-6 w-6" aria-hidden="true" />
                     </div>
-                    <p className="mt-3 font-medium text-slate-900">No members yet</p>
+                    <p className="mt-3 font-medium text-slate-900">
+                      {searchTerm || statusFilter !== "all" || planFilter
+                        ? "No matching members"
+                        : "No members yet"}
+                    </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Add your first member to get started.
+                      {searchTerm || statusFilter !== "all" || planFilter
+                        ? "Try a different search or filter."
+                        : "Add your first member to get started."}
                     </p>
                   </td>
                 </tr>
@@ -334,6 +454,41 @@ export default function Members() {
             </tbody>
           </table>
         </div>
+        {pagination.totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4 sm:px-6">
+            <p className="text-sm text-slate-500">
+              Page {page} of {pagination.totalPages}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setLoadingMembers(true);
+                  setMembersError("");
+                  setPage((currentPage) => currentPage - 1);
+                }}
+                disabled={page <= 1 || loadingMembers}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoadingMembers(true);
+                  setMembersError("");
+                  setPage((currentPage) => currentPage + 1);
+                }}
+                disabled={page >= pagination.totalPages || loadingMembers}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
       {showAddModal && (
         <AddMemberModal

@@ -16,17 +16,46 @@ export const getMembers = async (req, res) => {
 
     const skip = (page - 1) * limit;
     const tenantId = req.user.tenantId || req.user.id;
+    const search = String(req.query.search || "").trim().slice(0, 100);
+    const status = req.query.status;
+    const planId = String(req.query.plan || "").trim();
     const tenantFilter = { createdBy: tenantId };
+    if (status === "active") tenantFilter.active = true;
+    if (status === "inactive") tenantFilter.active = false;
+    if (planId) {
+      if (!mongoose.isValidObjectId(planId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid membership plan",
+        });
+      }
+      tenantFilter.plan = planId;
+    }
+
+    const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const memberFilter = search
+      ? {
+          $and: [
+            tenantFilter,
+            {
+              $or: [
+                { name: { $regex: escapedSearch, $options: "i" } },
+                { phone: { $regex: escapedSearch } },
+              ],
+            },
+          ],
+        }
+      : tenantFilter;
 
     const [members, total] = await Promise.all([
-      Member.find(tenantFilter)
+      Member.find(memberFilter)
         .populate("plan", "name price duration")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
 
-      Member.countDocuments(tenantFilter),
+      Member.countDocuments(memberFilter),
     ]);
 
     return res.status(200).json({

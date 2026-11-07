@@ -1,11 +1,14 @@
 import api from "./api";
 
 
-export const getMembers = async (page = 1, limit = 10) => {
+export const getMembers = async (page = 1, limit = 10, filters = {}) => {
   return await api.get("/members", {
     params: {
       page,
       limit,
+      search: filters.search || undefined,
+      status: filters.status || undefined,
+      plan: filters.plan || undefined,
     },
   });
 };
