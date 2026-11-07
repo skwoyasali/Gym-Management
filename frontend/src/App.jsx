@@ -12,7 +12,9 @@ import AdminLayout from "./components/layout/AppLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Members from "./pages/admin/Members";
 import Attendance from "./pages/admin/Attendance";
+import Plans from "./pages/admin/Plans";
 import MemberDashboard from "./pages/member/MemberDashboard";
+import Landing from "./pages/Landing";
 import ProtectedRoute from "./routes/ProtectedRoute";
 // import Members from "./pages/admin/Members";
 // import Attendance from "./pages/admin/Attendance";
@@ -21,6 +23,11 @@ import ProtectedRoute from "./routes/ProtectedRoute";
 // import Trainers from "./pages/admin/Trainers";
 
 const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <Landing />,
+  },
+
   {
     path: "/login",
     element: <Login />,
@@ -69,7 +76,10 @@ const router = createBrowserRouter([
         path: "attendance",
         element: <Attendance />,
       },
-      
+      {
+        path: "plans",
+        element: <Plans />,
+      },
     ],
   },
 
@@ -84,7 +94,7 @@ const router = createBrowserRouter([
 
   {
     path: "*",
-    element: <Navigate to="/login" replace />,
+    element: <Navigate to="/" replace />,
   },
 ]);
 

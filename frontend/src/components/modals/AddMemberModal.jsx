@@ -31,7 +31,38 @@ const inputBaseClass =
 
 const toDateInput = (date) => {
   if (!date) return "";
-  return new Date(date).toISOString().slice(0, 10);
+  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}/.test(date)) {
+    return date.slice(0, 10);
+  }
+  const parsedDate = new Date(date);
+  const year = parsedDate.getFullYear();
+  const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
+  const day = String(parsedDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getTodayDateInput = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getMembershipEndDate = (dateInput, durationInMonths) => {
+  if (
+    !dateInput ||
+    !Number.isInteger(durationInMonths) ||
+    durationInMonths < 1
+  ) {
+    return "";
+  }
+
+  const [year, month, day] = dateInput.split("-").map(Number);
+  const endDate = new Date(
+    Date.UTC(year, month - 1, day + durationInMonths * 30 - 1)
+  );
+  return endDate.toISOString().slice(0, 10);
 };
 
 const getMemberForm = (member) =>
@@ -97,10 +128,44 @@ const AddMemberModal = ({
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
 
-    setFormData((previous) => ({
-      ...previous,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    setFormData((previous) => {
+      if (name === "plan") {
+        const selectedPlan = plans.find(
+          (plan) => String(plan._id) === value
+        );
+        const membershipStart = previous.membershipStart || getTodayDateInput();
+
+        return {
+          ...previous,
+          plan: value,
+          membershipStart,
+          membershipEnd: selectedPlan
+            ? getMembershipEndDate(
+                membershipStart,
+                Number(selectedPlan.duration)
+              )
+            : "",
+        };
+      }
+
+      if (name === "membershipStart") {
+        const selectedPlan = plans.find(
+          (plan) => String(plan._id) === previous.plan
+        );
+        return {
+          ...previous,
+          membershipStart: value,
+          membershipEnd: selectedPlan
+            ? getMembershipEndDate(value, Number(selectedPlan.duration))
+            : previous.membershipEnd,
+        };
+      }
+
+      return {
+        ...previous,
+        [name]: type === "checkbox" ? checked : value,
+      };
+    });
 
     if (errors[name] || errors.submit) {
       setErrors((previous) => ({
@@ -508,6 +573,7 @@ const AddMemberModal = ({
                     name="membershipEnd"
                     value={formData.membershipEnd}
                     onChange={handleChange}
+                    min={formData.membershipStart || undefined}
                     aria-invalid={Boolean(errors.membershipEnd)}
                     aria-describedby={
                       errors.membershipEnd ? "membership-end-error" : undefined
@@ -520,6 +586,11 @@ const AddMemberModal = ({
                       className="mt-1.5 text-xs text-rose-600"
                     >
                       {errors.membershipEnd}
+                    </p>
+                  )}
+                  {!errors.membershipEnd && formData.plan && (
+                    <p className="mt-1.5 text-xs text-slate-500">
+                      Calculated using 30 days per plan month.
                     </p>
                   )}
                 </div>

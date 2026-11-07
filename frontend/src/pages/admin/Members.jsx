@@ -187,11 +187,12 @@ export default function Members() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] text-left">
+          <table className="w-full min-w-[820px] text-left">
             <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th scope="col" className="px-5 py-3 sm:px-6">Member</th>
                 <th scope="col" className="px-5 py-3 sm:px-6">Phone</th>
+                <th scope="col" className="px-5 py-3 sm:px-6">Membership plan</th>
                 <th scope="col" className="px-5 py-3 sm:px-6">Status</th>
                 <th scope="col" className="px-5 py-3 text-right sm:px-6">Actions</th>
               </tr>
@@ -200,7 +201,7 @@ export default function Members() {
             <tbody className="divide-y divide-slate-100">
               {loadingMembers ? (
                 <tr>
-                  <td colSpan="4" className="px-6 py-12 text-center text-sm text-slate-500">
+                  <td colSpan="5" className="px-6 py-12 text-center text-sm text-slate-500">
                     Loading members...
                   </td>
                 </tr>
@@ -225,6 +226,27 @@ export default function Members() {
                         <Phone className="h-4 w-4 text-slate-400" aria-hidden="true" />
                         {member.phone}
                       </a>
+                    </td>
+                    <td className="px-5 py-4 sm:px-6">
+                      {member.plan ? (
+                        <div>
+                          <p className="font-medium text-slate-900">
+                            {member.plan.name}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            ₹{Number(member.plan.price).toLocaleString("en-IN")}
+                            {member.plan.duration
+                              ? ` · ${member.plan.duration} ${
+                                  member.plan.duration === 1 ? "month" : "months"
+                                }`
+                              : ""}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-slate-400">
+                          No plan assigned
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-4 sm:px-6">
                       <span
@@ -298,7 +320,7 @@ export default function Members() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="4" className="px-6 py-14 text-center">
+                  <td colSpan="5" className="px-6 py-14 text-center">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-500">
                       <Users className="h-6 w-6" aria-hidden="true" />
                     </div>

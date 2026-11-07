@@ -112,6 +112,19 @@ export const addMember = async (req, res) => {
       });
     }
 
+    const selectedPlan = await Plan.exists({
+      _id: plan,
+      active: true,
+      $or: [{ createdBy: tenantId }, { createdBy: null }],
+    });
+
+    if (!selectedPlan) {
+      return res.status(400).json({
+        success: false,
+        message: "Membership plan not found",
+      });
+    }
+
     // Check duplicate phone
     const existingMember = await Member.findOne({
       phone: phone.trim(),
@@ -259,7 +272,10 @@ export const updateMember = async (req, res) => {
         createdBy: tenantId,
         phone: phone.trim(),
       }).lean(),
-      Plan.exists({ _id: plan }),
+      Plan.exists({
+        _id: plan,
+        $or: [{ createdBy: tenantId }, { createdBy: null }],
+      }),
     ]);
 
     if (existingPhone) {
