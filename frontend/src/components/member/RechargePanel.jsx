@@ -586,13 +586,14 @@ export default function RechargePanel({ onMembershipUpdate, view = "plan" }) {
         </div>
         {overview?.history.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-sm">
+            <table className="w-full min-w-[1000px] text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-5 py-3 sm:px-6">Plan</th>
                   <th className="px-5 py-3 sm:px-6">Recharge date</th>
                   <th className="px-5 py-3 sm:px-6">Membership dates</th>
                   <th className="px-5 py-3 sm:px-6">Amount</th>
+                  <th className="px-5 py-3 sm:px-6">Payment method</th>
                   <th className="px-5 py-3 sm:px-6">Payment</th>
                   <th className="px-5 py-3 sm:px-6">Approval</th>
                   <th className="px-5 py-3 sm:px-6">Reference</th>
@@ -617,6 +618,9 @@ export default function RechargePanel({ onMembershipUpdate, view = "plan" }) {
                     </td>
                     <td className="px-5 py-4 font-medium text-slate-800">
                       {currencyFormatter.format(record.amount)}
+                    </td>
+                    <td className="px-5 py-4 capitalize text-slate-600">
+                      {record.paymentMethod?.replace("_", " ") || "—"}
                     </td>
                     <td className="px-5 py-4">
                       <span

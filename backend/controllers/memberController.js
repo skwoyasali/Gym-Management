@@ -89,68 +89,25 @@ export const addMember = async (req, res) => {
       gender,
       dateOfBirth,
       address,
-      plan,
-      membershipStart,
-      membershipEnd,
     } = req.body;
     const tenantId = req.user.tenantId || req.user.id;
 
-    // Validate required fields
     if (
-      !name ||
-      !phone ||
-      !plan ||
-      !membershipStart ||
-      !membershipEnd
+      typeof name !== "string" ||
+      typeof phone !== "string" ||
+      name.trim().length < 2 ||
+      name.trim().length > 100 ||
+      !/^[0-9]{10}$/.test(phone.trim())
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          "Name, phone, plan, membership start and membership end are required",
+        message: "Enter a valid member name and 10-digit phone number",
       });
     }
-    
-
-    // Validate ObjectId
-    if (!mongoose.isValidObjectId(plan)) {
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({
         success: false,
-        message: "Invalid plan ID",
-      });
-    }
-    
-
-    // Validate dates
-    const startDate = new Date(membershipStart);
-    const endDate = new Date(membershipEnd);
-
-    if (
-      Number.isNaN(startDate.getTime()) ||
-      Number.isNaN(endDate.getTime())
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid membership dates",
-      });
-    }
-
-    if (endDate <= startDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Membership end date must be after start date",
-      });
-    }
-
-    const selectedPlan = await Plan.exists({
-      _id: plan,
-      active: true,
-      $or: [{ createdBy: tenantId }, { createdBy: null }],
-    });
-
-    if (!selectedPlan) {
-      return res.status(400).json({
-        success: false,
-        message: "Membership plan not found",
+        message: "Enter a valid email address",
       });
     }
 
@@ -176,9 +133,7 @@ export const addMember = async (req, res) => {
       gender,
       dateOfBirth: dateOfBirth || undefined,
       address: address?.trim(),
-      plan,
-      membershipStart: startDate,
-      membershipEnd: endDate,
+      active: false,
 
       // IMPORTANT:
       // Take user ID from authenticated JWT,
@@ -225,10 +180,6 @@ export const updateMember = async (req, res) => {
       gender,
       dateOfBirth,
       address,
-      plan,
-      membershipStart,
-      membershipEnd,
-      active,
     } = req.body;
     const tenantId = req.user.tenantId || req.user.id;
 
@@ -245,14 +196,11 @@ export const updateMember = async (req, res) => {
       !name.trim() ||
       name.trim().length < 2 ||
       name.trim().length > 100 ||
-      !/^[0-9]{10}$/.test(phone.trim()) ||
-      !plan ||
-      !membershipStart ||
-      !membershipEnd
+      !/^[0-9]{10}$/.test(phone.trim())
     ) {
       return res.status(400).json({
         success: false,
-        message: "Please provide valid member details and membership dates",
+        message: "Please provide valid member personal details",
       });
     }
 
@@ -260,26 +208,6 @@ export const updateMember = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Enter a valid email address",
-      });
-    }
-
-    if (!mongoose.isValidObjectId(plan)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid plan ID",
-      });
-    }
-
-    const startDate = new Date(membershipStart);
-    const endDate = new Date(membershipEnd);
-    if (
-      Number.isNaN(startDate.getTime()) ||
-      Number.isNaN(endDate.getTime()) ||
-      endDate <= startDate
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Membership end date must be after the start date",
       });
     }
 
@@ -295,29 +223,16 @@ export const updateMember = async (req, res) => {
       });
     }
 
-    const [existingPhone, existingPlan] = await Promise.all([
-      Member.findOne({
+    const existingPhone = await Member.findOne({
         _id: { $ne: id },
         createdBy: tenantId,
         phone: phone.trim(),
-      }).lean(),
-      Plan.exists({
-        _id: plan,
-        $or: [{ createdBy: tenantId }, { createdBy: null }],
-      }),
-    ]);
+      }).lean();
 
     if (existingPhone) {
       return res.status(409).json({
         success: false,
         message: "A member with this phone number already exists",
-      });
-    }
-
-    if (!existingPlan) {
-      return res.status(400).json({
-        success: false,
-        message: "Membership plan not found",
       });
     }
 
@@ -349,10 +264,6 @@ export const updateMember = async (req, res) => {
     member.gender = gender || undefined;
     member.dateOfBirth = dateOfBirth || undefined;
     member.address = address?.trim() || undefined;
-    member.plan = plan;
-    member.membershipStart = startDate;
-    member.membershipEnd = endDate;
-    if (typeof active === "boolean") member.active = active;
 
     if (member.userId) {
       await User.updateOne(

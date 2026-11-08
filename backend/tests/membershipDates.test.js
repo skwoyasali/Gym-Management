@@ -3,81 +3,156 @@ import assert from "node:assert/strict";
 import {
   calculateRechargeDates,
   dateKeyToUtcDate,
+  getPlanDurationDays,
+  selectLatestMembershipRecord,
 } from "../utils/membershipDates.js";
 import { getDateKeyInTimeZone } from "../utils/gymDate.js";
 
-test("active membership begins its recharge the day after expiry", () => {
+const calculate = ({ membershipEnd, durationDays = 30, today = "2026-11-07" }) =>
+  calculateRechargeDates({
+    membershipEnd,
+    membershipActive: Boolean(membershipEnd),
+    durationDays,
+    today,
+  });
+
+test("active membership with 23 days remaining starts after its expiry", () => {
   assert.deepEqual(
-    calculateRechargeDates({
-      membershipEnd: "2026-11-30",
-      membershipActive: true,
-      durationMonths: 1,
-      today: "2026-11-20",
-    }),
+    calculate({ membershipEnd: "2026-11-30" }),
     { startDate: "2026-12-01", endDate: "2026-12-30" }
   );
 });
 
-test("expired membership begins on the current gym date", () => {
+test("membership with one remaining day after today starts after expiry", () => {
   assert.deepEqual(
-    calculateRechargeDates({
-      membershipEnd: "2026-11-19",
-      membershipActive: true,
-      durationMonths: 1,
-      today: "2026-11-20",
+    calculate({
+      membershipEnd: "2026-11-08",
+      today: "2026-11-07",
     }),
-    { startDate: "2026-11-20", endDate: "2026-12-19" }
+    { startDate: "2026-11-09", endDate: "2026-12-08" }
   );
 });
 
-test("inactive membership does not preserve a future old expiry", () => {
+test("membership expiring today starts the new plan today", () => {
   assert.deepEqual(
-    calculateRechargeDates({
-      membershipEnd: "2026-12-30",
-      membershipActive: false,
-      durationMonths: 1,
-      today: "2026-11-20",
-    }),
-    { startDate: "2026-11-20", endDate: "2026-12-19" }
+    calculate({ membershipEnd: "2026-11-07" }),
+    { startDate: "2026-11-07", endDate: "2026-12-06" }
   );
 });
 
-test("30-day month durations handle multi-month and yearly plans", () => {
-  const cases = [
-    [3, "2027-02-28"],
-    [6, "2027-05-29"],
-    [12, "2027-11-25"],
-  ];
-
-  for (const [durationMonths, expectedEndDate] of cases) {
-    const result = calculateRechargeDates({
-      membershipEnd: "2026-11-30",
-      membershipActive: true,
-      durationMonths,
-      today: "2026-11-20",
-    });
-    assert.equal(result.startDate, "2026-12-01");
-    assert.equal(result.endDate, expectedEndDate);
-  }
+test("membership expired yesterday starts the new plan today", () => {
+  assert.deepEqual(
+    calculate({ membershipEnd: "2026-11-06" }),
+    { startDate: "2026-11-07", endDate: "2026-12-06" }
+  );
 });
 
-test("consecutive recharges extend from the previous approved expiry", () => {
-  const first = calculateRechargeDates({
+test("a member with no previous membership starts today", () => {
+  assert.deepEqual(
+    calculate({ membershipEnd: null }),
+    { startDate: "2026-11-07", endDate: "2026-12-06" }
+  );
+});
+
+test("three consecutive recharges chain from the latest approved expiry", () => {
+  const first = calculate({
     membershipEnd: "2026-11-30",
-    membershipActive: true,
-    durationMonths: 1,
-    today: "2026-11-20",
+    durationDays: 30,
   });
-  const second = calculateRechargeDates({
+  const second = calculate({
     membershipEnd: first.endDate,
-    membershipActive: true,
-    durationMonths: 3,
-    today: "2026-11-20",
+    durationDays: 90,
+  });
+  const third = calculate({
+    membershipEnd: second.endDate,
+    durationDays: 180,
+  });
+
+  assert.deepEqual(first, {
+    startDate: "2026-12-01",
+    endDate: "2026-12-30",
   });
   assert.deepEqual(second, {
     startDate: "2026-12-31",
     endDate: "2027-03-30",
   });
+  assert.deepEqual(third, {
+    startDate: "2027-03-31",
+    endDate: "2027-09-26",
+  });
+});
+
+test("plan durations use 30, 90, 180 and 365 days", () => {
+  assert.deepEqual(
+    [1, 3, 6, 12].map(getPlanDurationDays),
+    [30, 90, 180, 365]
+  );
+
+  for (const [durationMonths, durationDays] of [
+    [1, 30],
+    [3, 90],
+    [6, 180],
+    [12, 365],
+  ]) {
+    const result = calculate({
+      membershipEnd: null,
+      durationDays: getPlanDurationDays(durationMonths),
+    });
+    const expectedEnd = new Date("2026-11-07T00:00:00.000Z");
+    expectedEnd.setUTCDate(expectedEnd.getUTCDate() + durationDays - 1);
+    assert.equal(result.endDate, expectedEnd.toISOString().slice(0, 10));
+  }
+});
+
+test("latest valid approved membership is selected by expiry, not input order", () => {
+  const expired = {
+    approvalStatus: "approved",
+    membershipStart: "2026-01-01",
+    membershipEnd: "2026-10-31",
+  };
+  const later = {
+    approvalStatus: "approved",
+    membershipStart: "2027-01-01",
+    membershipEnd: "2027-03-31",
+  };
+  const current = {
+    approvalStatus: "approved",
+    membershipStart: "2026-11-01",
+    membershipEnd: "2026-11-30",
+  };
+  const rejected = {
+    approvalStatus: "rejected",
+    membershipStart: "2027-04-01",
+    membershipEnd: "2027-04-30",
+  };
+  const invalidRange = {
+    approvalStatus: "approved",
+    membershipStart: "2027-05-01",
+    membershipEnd: "2027-04-30",
+  };
+
+  assert.equal(
+    selectLatestMembershipRecord([
+      expired,
+      current,
+      later,
+      rejected,
+      invalidRange,
+    ]),
+    later
+  );
+  assert.equal(
+    selectLatestMembershipRecord([expired, current, later], {
+      today: "2026-11-07",
+    }),
+    later
+  );
+  assert.equal(
+    selectLatestMembershipRecord([expired, current], {
+      today: "2026-11-07",
+    }),
+    current
+  );
 });
 
 test("date-only membership values are stored at UTC midnight", () => {
@@ -94,7 +169,7 @@ test("gym-local calendar dates are used around UTC day boundaries", () => {
   assert.deepEqual(
     calculateRechargeDates({
       membershipActive: false,
-      durationMonths: 1,
+      durationDays: 30,
       today: paymentTime,
       timeZone: "America/New_York",
     }),
@@ -106,7 +181,7 @@ test("invalid durations and dates are rejected", () => {
   assert.throws(
     () =>
       calculateRechargeDates({
-        durationMonths: 0,
+        durationDays: 0,
         membershipActive: false,
         today: "2026-11-20",
       }),
@@ -115,7 +190,7 @@ test("invalid durations and dates are rejected", () => {
   assert.throws(
     () =>
       calculateRechargeDates({
-        durationMonths: 1,
+        durationDays: 30,
         membershipActive: false,
         today: "2026-02-30",
       }),

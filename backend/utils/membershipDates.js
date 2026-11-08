@@ -10,6 +10,33 @@ const toDateKey = (value) => {
   return getUtcDayBounds(dateKey) ? dateKey : null;
 };
 
+export const isValidMembershipDateRange = (record) => {
+  const start = toDateKey(record?.membershipStart);
+  const end = toDateKey(record?.membershipEnd);
+  return Boolean(start && end && start <= end);
+};
+
+export const selectLatestMembershipRecord = (records = [], { today } = {}) => {
+  const todayKey = today ? toDateKey(today) : null;
+  return records
+    .filter(
+      (record) =>
+        record.approvalStatus === "approved" &&
+        isValidMembershipDateRange(record) &&
+        (!todayKey || toDateKey(record.membershipEnd) >= todayKey)
+    )
+    .sort((first, second) => {
+      const endDifference =
+        toDateKey(second.membershipEnd).localeCompare(
+          toDateKey(first.membershipEnd)
+        );
+      if (endDifference) return endDifference;
+      return toDateKey(second.membershipStart).localeCompare(
+        toDateKey(first.membershipStart)
+      );
+    })[0] || null;
+};
+
 const addDaysToDateKey = (dateKey, days) => {
   const bounds = getUtcDayBounds(dateKey);
   if (!bounds) throw new Error("Invalid membership date");
@@ -18,15 +45,22 @@ const addDaysToDateKey = (dateKey, days) => {
   return result.toISOString().slice(0, 10);
 };
 
+export const getPlanDurationDays = (durationMonths) => {
+  if (!Number.isInteger(durationMonths) || durationMonths < 1 || durationMonths > 120) {
+    throw new Error("Membership duration must be between 1 and 120 months");
+  }
+  return durationMonths === 12 ? 365 : durationMonths * 30;
+};
+
 export const calculateRechargeDates = ({
   membershipEnd,
   membershipActive,
-  durationMonths,
+  durationDays,
   today = new Date(),
   timeZone,
 }) => {
-  if (!Number.isInteger(durationMonths) || durationMonths < 1 || durationMonths > 120) {
-    throw new Error("Membership duration must be between 1 and 120 months");
+  if (!Number.isInteger(durationDays) || durationDays < 1) {
+    throw new Error("Membership duration must be a positive number of days");
   }
 
   let todayKey;
@@ -40,10 +74,10 @@ export const calculateRechargeDates = ({
   }
   const previousEndKey = toDateKey(membershipEnd);
   const startDate =
-    membershipActive && previousEndKey && previousEndKey >= todayKey
+    membershipActive && previousEndKey && previousEndKey > todayKey
       ? addDaysToDateKey(previousEndKey, 1)
       : todayKey;
-  const endDate = addDaysToDateKey(startDate, durationMonths * 30 - 1);
+  const endDate = addDaysToDateKey(startDate, durationDays - 1);
 
   return { startDate, endDate };
 };

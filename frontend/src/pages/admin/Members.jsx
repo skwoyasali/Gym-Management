@@ -1,4 +1,5 @@
 import AddMemberModal from "../../components/modals/AddMemberModal";
+import MemberRechargeModal from "../../components/modals/MemberRechargeModal";
 
 import { useEffect, useState } from "react";
 import {
@@ -6,6 +7,7 @@ import {
   ChevronRight,
   Check,
   Copy,
+  Banknote,
   History,
   KeyRound,
   Pencil,
@@ -48,6 +50,7 @@ export default function Members() {
   const [invitingMemberId, setInvitingMemberId] = useState(null);
   const [activationDetails, setActivationDetails] = useState(null);
   const [historyDetails, setHistoryDetails] = useState(null);
+  const [rechargingMember, setRechargingMember] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState("");
   const [copiedCode, setCopiedCode] = useState(false);
@@ -192,6 +195,16 @@ export default function Members() {
     }
   };
 
+  const handleRechargeComplete = () => {
+    setRechargingMember(null);
+    setLoadingMembers(true);
+    setMembersError("");
+    setRefreshMembers((current) => current + 1);
+    if (historyDetails) {
+      handleViewRechargeHistory(historyDetails.member);
+    }
+  };
+
   const copyActivationCode = async () => {
     try {
       await navigator.clipboard.writeText(activationDetails.activationCode);
@@ -217,7 +230,6 @@ export default function Members() {
         <button
           type="button"
           onClick={openAddModal}
-          disabled={Boolean(plansError) || plans.length === 0}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 hover:shadow-md focus:outline-none focus:ring-4 focus:ring-indigo-100 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
         >
           <UserPlus className="h-4 w-4" aria-hidden="true" />
@@ -326,7 +338,7 @@ export default function Members() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left">
+          <table className="w-full min-w-[900px] text-left">
             <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th scope="col" className="px-5 py-3 sm:px-6">Member</th>
@@ -429,6 +441,16 @@ export default function Members() {
                         )}
                         <button
                           type="button"
+                          onClick={() => setRechargingMember(member)}
+                          disabled={Boolean(plansError) || plans.length === 0}
+                          aria-label={`Recharge membership for ${member.name}`}
+                          title="Recharge membership"
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <Banknote className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleViewRechargeHistory(member)}
                           aria-label={`View recharge history for ${member.name}`}
                           title="Recharge history"
@@ -529,9 +551,16 @@ export default function Members() {
           key={editingMember?._id || "new-member"}
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
-          plans={plans}
           onSuccess={handleMemberCreated}
           member={editingMember}
+        />
+      )}
+      {rechargingMember && (
+        <MemberRechargeModal
+          member={rechargingMember}
+          plans={plans}
+          onClose={() => setRechargingMember(null)}
+          onSuccess={handleRechargeComplete}
         />
       )}
       {activationDetails && (
@@ -651,13 +680,15 @@ export default function Members() {
               </p>
             ) : historyDetails.records.length ? (
               <div className="overflow-auto">
-                <table className="w-full min-w-[900px] text-left text-sm">
+                <table className="w-full min-w-[1100px] text-left text-sm">
                   <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     <tr>
                       <th className="px-5 py-3">Plan</th>
                       <th className="px-5 py-3">Recharge date</th>
-                      <th className="px-5 py-3">Membership period</th>
+                      <th className="px-5 py-3">Start date</th>
+                      <th className="px-5 py-3">Expiry date</th>
                       <th className="px-5 py-3">Amount</th>
+                      <th className="px-5 py-3">Payment method</th>
                       <th className="px-5 py-3">Payment</th>
                       <th className="px-5 py-3">Approval</th>
                       <th className="px-5 py-3">Reference</th>
@@ -690,7 +721,8 @@ export default function Members() {
                             day: "numeric",
                             timeZone: "UTC",
                           }).format(new Date(record.membershipStart))}
-                          {" – "}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">
                           {new Intl.DateTimeFormat("en", {
                             year: "numeric",
                             month: "short",
@@ -699,7 +731,14 @@ export default function Members() {
                           }).format(new Date(record.membershipEnd))}
                         </td>
                         <td className="px-5 py-4 font-medium text-slate-800">
-                          ₹{Number(record.amount).toLocaleString("en-IN")}
+                          {new Intl.NumberFormat("en-IN", {
+                            style: "currency",
+                            currency: "INR",
+                            maximumFractionDigits: 2,
+                          }).format(Number(record.amount))}
+                        </td>
+                        <td className="px-5 py-4 capitalize text-slate-600">
+                          {record.paymentMethod?.replace("_", " ") || "—"}
                         </td>
                         <td className="px-5 py-4">
                           <span

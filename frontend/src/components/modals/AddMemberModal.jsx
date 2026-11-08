@@ -20,50 +20,10 @@ const initialForm = {
   gender: "",
   dateOfBirth: "",
   address: "",
-  plan: "",
-  membershipStart: "",
-  membershipEnd: "",
-  active: true,
 };
 
 const inputBaseClass =
   "w-full rounded-xl border bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:ring-4";
-
-const toDateInput = (date) => {
-  if (!date) return "";
-  if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}/.test(date)) {
-    return date.slice(0, 10);
-  }
-  const parsedDate = new Date(date);
-  const year = parsedDate.getFullYear();
-  const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
-  const day = String(parsedDate.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const getTodayDateInput = () => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const getMembershipEndDate = (dateInput, durationInMonths) => {
-  if (
-    !dateInput ||
-    !Number.isInteger(durationInMonths) ||
-    durationInMonths < 1
-  ) {
-    return "";
-  }
-
-  const [year, month, day] = dateInput.split("-").map(Number);
-  const endDate = new Date(
-    Date.UTC(year, month - 1, day + durationInMonths * 30 - 1)
-  );
-  return endDate.toISOString().slice(0, 10);
-};
 
 const getMemberForm = (member) =>
   member
@@ -72,19 +32,16 @@ const getMemberForm = (member) =>
         phone: member.phone || "",
         email: member.email || "",
         gender: member.gender || "",
-        dateOfBirth: toDateInput(member.dateOfBirth),
+        dateOfBirth: member.dateOfBirth
+          ? new Date(member.dateOfBirth).toISOString().slice(0, 10)
+          : "",
         address: member.address || "",
-        plan: member.plan?._id || member.plan || "",
-        membershipStart: toDateInput(member.membershipStart),
-        membershipEnd: toDateInput(member.membershipEnd),
-        active: Boolean(member.active),
       }
     : initialForm;
 
 const AddMemberModal = ({
   isOpen,
   onClose,
-  plans = [],
   onSuccess,
   member = null,
 }) => {
@@ -128,44 +85,10 @@ const AddMemberModal = ({
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
 
-    setFormData((previous) => {
-      if (name === "plan") {
-        const selectedPlan = plans.find(
-          (plan) => String(plan._id) === value
-        );
-        const membershipStart = previous.membershipStart || getTodayDateInput();
-
-        return {
-          ...previous,
-          plan: value,
-          membershipStart,
-          membershipEnd: selectedPlan
-            ? getMembershipEndDate(
-                membershipStart,
-                Number(selectedPlan.duration)
-              )
-            : "",
-        };
-      }
-
-      if (name === "membershipStart") {
-        const selectedPlan = plans.find(
-          (plan) => String(plan._id) === previous.plan
-        );
-        return {
-          ...previous,
-          membershipStart: value,
-          membershipEnd: selectedPlan
-            ? getMembershipEndDate(value, Number(selectedPlan.duration))
-            : previous.membershipEnd,
-        };
-      }
-
-      return {
-        ...previous,
-        [name]: type === "checkbox" ? checked : value,
-      };
-    });
+    setFormData((previous) => ({
+      ...previous,
+      [name]: type === "checkbox" ? checked : value,
+    }));
 
     if (errors[name] || errors.submit) {
       setErrors((previous) => ({
@@ -196,24 +119,6 @@ const AddMemberModal = ({
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())
     ) {
       newErrors.email = "Enter a valid email address";
-    }
-
-    if (!formData.plan) {
-      newErrors.plan = "Please select a membership plan";
-    }
-
-    if (!formData.membershipStart) {
-      newErrors.membershipStart = "Membership start date is required";
-    }
-
-    if (!formData.membershipEnd) {
-      newErrors.membershipEnd = "Membership end date is required";
-    } else if (
-      formData.membershipStart &&
-      new Date(formData.membershipEnd) <= new Date(formData.membershipStart)
-    ) {
-      newErrors.membershipEnd =
-        "Membership end date must be after the start date";
     }
 
     setErrors(newErrors);
@@ -320,8 +225,9 @@ const AddMemberModal = ({
                 <BadgeCheck className="h-5 w-5" aria-hidden="true" />
               </div>
               <p className="text-sm leading-5 text-slate-600">
-                Add the member&apos;s contact details and choose their
-                membership plan to get them started.
+                {member
+                  ? "Update the member’s personal and contact information."
+                  : "Add the member’s personal and contact information. Assign a membership plan later using Recharge."}
                 <span className="ml-1 text-rose-600">* Required fields</span>
               </p>
             </div>
@@ -488,130 +394,6 @@ const AddMemberModal = ({
                     />
                   </div>
                 </div>
-              </div>
-            </section>
-
-            <section
-              aria-labelledby="membership-details-heading"
-              className="mt-7 border-t border-slate-100 pt-6"
-            >
-              <div className="mb-4 flex items-center gap-2">
-                <CalendarDays
-                  className="h-4 w-4 text-indigo-600"
-                  aria-hidden="true"
-                />
-                <h3
-                  id="membership-details-heading"
-                  className="text-sm font-semibold text-slate-900"
-                >
-                  Membership details
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <label htmlFor="member-plan" className={fieldLabelClass}>
-                    Membership plan <span className="text-rose-500">*</span>
-                  </label>
-                  <select
-                    id="member-plan"
-                    name="plan"
-                    value={formData.plan}
-                    onChange={handleChange}
-                    aria-invalid={Boolean(errors.plan)}
-                    aria-describedby={errors.plan ? "member-plan-error" : undefined}
-                    className={inputClass("plan")}
-                  >
-                    <option value="">Choose a plan</option>
-                    {plans.map((plan) => (
-                      <option key={plan._id} value={plan._id}>
-                        {plan.name} · ₹{plan.price}
-                        {plan.duration ? ` · ${plan.duration} month${plan.duration === 1 ? "" : "s"}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.plan && (
-                    <p id="member-plan-error" className="mt-1.5 text-xs text-rose-600">
-                      {errors.plan}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="membership-start" className={fieldLabelClass}>
-                    Start date <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    id="membership-start"
-                    type="date"
-                    name="membershipStart"
-                    value={formData.membershipStart}
-                    onChange={handleChange}
-                    aria-invalid={Boolean(errors.membershipStart)}
-                    aria-describedby={
-                      errors.membershipStart ? "membership-start-error" : undefined
-                    }
-                    className={inputClass("membershipStart")}
-                  />
-                  {errors.membershipStart && (
-                    <p
-                      id="membership-start-error"
-                      className="mt-1.5 text-xs text-rose-600"
-                    >
-                      {errors.membershipStart}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="membership-end" className={fieldLabelClass}>
-                    End date <span className="text-rose-500">*</span>
-                  </label>
-                  <input
-                    id="membership-end"
-                    type="date"
-                    name="membershipEnd"
-                    value={formData.membershipEnd}
-                    onChange={handleChange}
-                    min={formData.membershipStart || undefined}
-                    aria-invalid={Boolean(errors.membershipEnd)}
-                    aria-describedby={
-                      errors.membershipEnd ? "membership-end-error" : undefined
-                    }
-                    className={inputClass("membershipEnd")}
-                  />
-                  {errors.membershipEnd && (
-                    <p
-                      id="membership-end-error"
-                      className="mt-1.5 text-xs text-rose-600"
-                    >
-                      {errors.membershipEnd}
-                    </p>
-                  )}
-                  {!errors.membershipEnd && formData.plan && (
-                    <p className="mt-1.5 text-xs text-slate-500">
-                      Calculated using 30 days per plan month.
-                    </p>
-                  )}
-                </div>
-
-                <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 sm:col-span-2">
-                  <span>
-                    <span className="block text-sm font-medium text-slate-800">
-                      Active membership
-                    </span>
-                    <span className="mt-0.5 block text-xs text-slate-500">
-                      Member is active from their start date
-                    </span>
-                  </span>
-                  <input
-                    type="checkbox"
-                    name="active"
-                    checked={formData.active}
-                    onChange={handleChange}
-                    className="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                </label>
               </div>
             </section>
 

@@ -14,6 +14,9 @@ export const reviewRechargeRequest = async (id, action, reason = "") =>
 export const getMemberRechargeHistory = async (memberId) =>
   api.get(`/recharges/admin/members/${memberId}/history`);
 
+export const createAdminMemberRecharge = async (memberId, data) =>
+  api.post(`/recharges/admin/members/${memberId}/recharge`, data);
+
 export const getRechargeProof = async (requestId) =>
   api.get(`/recharges/requests/${requestId}/proof`, {
     responseType: "blob",

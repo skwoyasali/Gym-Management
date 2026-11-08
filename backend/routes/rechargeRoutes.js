@@ -2,6 +2,7 @@ import express from "express";
 import {
   getMemberRechargeHistory,
   getMemberRechargeOverview,
+  createAdminMemberRecharge,
   getRechargeProof,
   getRechargeRequests,
   reviewRechargeRequest,
@@ -41,6 +42,11 @@ router.get(
   "/admin/members/:memberId/history",
   requireRole("admin"),
   getMemberRechargeHistory
+);
+router.post(
+  "/admin/members/:memberId/recharge",
+  requireRole("admin"),
+  createAdminMemberRecharge
 );
 
 export default router;

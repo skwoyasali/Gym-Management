@@ -2,13 +2,11 @@ import { useEffect } from "react";
 import { NavLink } from "react-router-dom";
 import {
   BarChart3,
-  CreditCard,
   Dumbbell,
   LayoutDashboard,
   ReceiptText,
   Settings,
   Users,
-  UserRoundCog,
   X,
 } from "lucide-react";
 
@@ -16,11 +14,9 @@ const menuItems = [
   { name: "Dashboard", path: "/admin/dashboard", icon: LayoutDashboard },
   { name: "Members", path: "/admin/members", icon: Users },
   { name: "Attendance", path: "/admin/attendance", icon: BarChart3 },
-  { name: "Payments", path: "/admin/payments", icon: CreditCard },
   { name: "Plans", path: "/admin/plans", icon: Dumbbell },
   { name: "Recharge Requests", path: "/admin/recharge-requests", icon: ReceiptText },
   { name: "Settings", path: "/admin/settings", icon: Settings },
-  { name: "Trainers", path: "/admin/trainers", icon: UserRoundCog },
 ];
 
 export default function Sidebar({

@@ -43,17 +43,14 @@ const memberSchema = new mongoose.Schema(
     plan: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Plan",
-      required: true,
     },
 
     membershipStart: {
       type: Date,
-      required: true,
     },
 
     membershipEnd: {
       type: Date,
-      required: true,
     },
 
     active: {

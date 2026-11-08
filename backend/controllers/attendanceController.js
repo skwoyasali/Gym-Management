@@ -1,12 +1,17 @@
 import mongoose from "mongoose";
 import Attendance from "../models/Attendance.js";
 import Member from "../models/Member.js";
+import MembershipRecord from "../models/MembershipRecord.js";
 import Gym from "../models/Gym.js";
 import {
   DEFAULT_GYM_TIMEZONE,
   getDateKeyInTimeZone,
   getUtcDayBounds,
 } from "../utils/gymDate.js";
+import {
+  dateKeyToUtcDate,
+  selectLatestMembershipRecord,
+} from "../utils/membershipDates.js";
 
 const getCalendarDayDifference = (fromDateKey, toDateKey) => {
   const from = getUtcDayBounds(fromDateKey);
@@ -65,22 +70,38 @@ export const getMemberAttendance = async (req, res) => {
     const timeZone = gym?.timezone || DEFAULT_GYM_TIMEZONE;
     const today = getDateKeyInTimeZone(new Date(), timeZone);
 
-    const [attendance, member] = await Promise.all([
-      Attendance.find({
-        tenantId: req.user.tenantId,
-        memberId: req.user.memberId,
-      })
-        .sort({ attendanceDate: -1 })
-        .limit(60)
-        .lean(),
-      Member.findOne({
-        _id: req.user.memberId,
-        createdBy: req.user.tenantId,
-        userId: req.user.id,
-      })
-        .populate("plan", "name duration")
-        .lean(),
-    ]);
+    const todayDate = dateKeyToUtcDate(today);
+    const [attendance, member, validMemberships, hasMembershipHistory] =
+      await Promise.all([
+        Attendance.find({
+          tenantId: req.user.tenantId,
+          memberId: req.user.memberId,
+        })
+          .sort({ attendanceDate: -1 })
+          .limit(60)
+          .lean(),
+        Member.findOne({
+          _id: req.user.memberId,
+          createdBy: req.user.tenantId,
+          userId: req.user.id,
+        })
+          .populate("plan", "name duration")
+          .lean(),
+        MembershipRecord.find({
+          tenantId: req.user.tenantId,
+          memberId: req.user.memberId,
+          approvalStatus: "approved",
+          membershipStart: { $lte: todayDate },
+          membershipEnd: { $gte: todayDate },
+        })
+          .sort({ membershipEnd: -1, membershipStart: -1, createdAt: -1 })
+          .lean(),
+        MembershipRecord.exists({
+          tenantId: req.user.tenantId,
+          memberId: req.user.memberId,
+          approvalStatus: "approved",
+        }),
+      ]);
 
     if (!member) {
       return res.status(404).json({
@@ -89,15 +110,41 @@ export const getMemberAttendance = async (req, res) => {
       });
     }
 
-    const startDate = member.membershipStart.toISOString().slice(0, 10);
-    const endDate = member.membershipEnd.toISOString().slice(0, 10);
+    const latestCurrentRecord = selectLatestMembershipRecord(validMemberships, {
+      today,
+    });
+    const latestHistoryRecord = hasMembershipHistory
+      ? await MembershipRecord.findOne({
+          tenantId: req.user.tenantId,
+          memberId: req.user.memberId,
+          approvalStatus: "approved",
+        })
+          .sort({ membershipEnd: -1, membershipStart: -1, createdAt: -1 })
+          .lean()
+      : null;
+    const displayedMembership =
+      latestCurrentRecord ||
+      selectLatestMembershipRecord(
+        latestHistoryRecord ? [latestHistoryRecord] : []
+      ) ||
+      (!hasMembershipHistory &&
+      member.membershipStart instanceof Date &&
+      member.membershipEnd instanceof Date
+        ? member
+        : null);
+    const startDate = displayedMembership?.membershipStart
+      ? displayedMembership.membershipStart.toISOString().slice(0, 10)
+      : null;
+    const endDate = displayedMembership?.membershipEnd
+      ? displayedMembership.membershipEnd.toISOString().slice(0, 10)
+      : null;
     const daysUntilStart = getCalendarDayDifference(today, startDate);
     const daysRemaining =
-      !member.active || endDate < today
+      !member.active || !endDate || endDate < today
         ? 0
         : getCalendarDayDifference(today > startDate ? today : startDate, endDate) +
           1;
-    const membershipStatus = !member.active
+    const membershipStatus = !member.active || !displayedMembership
       ? "inactive"
       : today < startDate
         ? "upcoming"
@@ -110,7 +157,10 @@ export const getMemberAttendance = async (req, res) => {
       data: attendance,
       today,
       membership: {
-        planName: member.plan?.name || "Membership",
+        planName:
+          (displayedMembership === member
+            ? member.plan?.name
+            : displayedMembership?.planName) || "Membership",
         startDate,
         endDate,
         daysRemaining,
@@ -150,16 +200,43 @@ export const checkInMember = async (req, res) => {
     );
     const { start: today, end: tomorrow } = getUtcDayBounds(todayKey);
 
-    const member = await Member.findOne({
-      _id: memberId,
-      createdBy: tenantId,
-      userId: req.user.id,
-      active: true,
-      membershipStart: { $lt: tomorrow },
-      membershipEnd: { $gte: today },
-    }).lean();
+    const [member, validMemberships, hasMembershipHistory] = await Promise.all([
+      Member.findOne({
+        _id: memberId,
+        createdBy: tenantId,
+        userId: req.user.id,
+      }).lean(),
+      MembershipRecord.find({
+        tenantId,
+        memberId,
+        approvalStatus: "approved",
+        membershipStart: { $lt: tomorrow },
+        membershipEnd: { $gte: today },
+      })
+        .sort({ membershipEnd: -1, membershipStart: -1, createdAt: -1 })
+        .lean(),
+      MembershipRecord.exists({
+        tenantId,
+        memberId,
+        approvalStatus: "approved",
+      }),
+    ]);
 
     if (!member) {
+      return res.status(403).json({
+        success: false,
+        message: "An active membership is required to check in",
+      });
+    }
+
+    const latestCurrentRecord = selectLatestMembershipRecord(validMemberships, {
+      today: todayKey,
+    });
+    const hasCurrentMembership = hasMembershipHistory
+      ? Boolean(latestCurrentRecord)
+      : member.membershipStart < tomorrow && member.membershipEnd >= today;
+
+    if (!member.active || !hasCurrentMembership) {
       return res.status(403).json({
         success: false,
         message: "An active membership is required to check in",

@@ -30,6 +30,10 @@ const membershipRecordSchema = new mongoose.Schema(
       enum: ["verified", "not_recorded"],
       required: true,
     },
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "upi", "card", "bank_transfer", "other"],
+    },
     approvalStatus: {
       type: String,
       enum: ["approved"],
@@ -38,7 +42,7 @@ const membershipRecordSchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ["recharge", "legacy"],
+      enum: ["recharge", "admin_recharge", "legacy"],
       required: true,
     },
     transactionReference: { type: String, trim: true, maxlength: 120 },

@@ -11,6 +11,9 @@ import {
 import {
   calculateRechargeDates,
   dateKeyToUtcDate,
+  getPlanDurationDays,
+  isValidMembershipDateRange,
+  selectLatestMembershipRecord,
 } from "../utils/membershipDates.js";
 import {
   deletePrivateImage,
@@ -23,6 +26,10 @@ import {
   getRechargeTenantId,
   getTenantRechargeRequestFilter,
 } from "../utils/rechargeAccess.js";
+import {
+  mongoTransactionsUnavailableMessage,
+  supportsMongoTransactions,
+} from "../utils/mongoTransactions.js";
 
 const getTodayForGym = (gym) =>
   getDateKeyInTimeZone(
@@ -50,6 +57,7 @@ const serializeMembershipRecord = (record) => ({
   membershipEnd: record.membershipEnd,
   rechargedAt: record.rechargedAt,
   paymentStatus: record.paymentStatus,
+  paymentMethod: record.paymentMethod,
   approvalStatus: record.approvalStatus,
   source: record.source,
   transactionReference: record.transactionReference,
@@ -310,6 +318,16 @@ export const reviewRechargeRequest = async (req, res) => {
 
   let session;
   try {
+    const helloResponse = await mongoose.connection.db
+      .admin()
+      .command({ hello: 1 });
+    if (!supportsMongoTransactions(helloResponse)) {
+      return res.status(503).json({
+        success: false,
+        message: mongoTransactionsUnavailableMessage,
+      });
+    }
+
     session = await mongoose.startSession();
     let approvedRequest;
     await session.withTransaction(async () => {
@@ -363,11 +381,17 @@ export const reviewRechargeRequest = async (req, res) => {
         throw error;
       }
 
+      const today = getTodayForGym(gym);
+      const todayDate = dateKeyToUtcDate(today);
       const historyExists = await MembershipRecord.exists({
         tenantId,
         memberId: member._id,
       }).session(session);
-      if (!historyExists) {
+      if (
+        !historyExists &&
+        member.active &&
+        isValidMembershipDateRange(member)
+      ) {
         const previousPlan = await Plan.findById(member.plan)
           .select("name price duration")
           .session(session)
@@ -393,11 +417,79 @@ export const reviewRechargeRequest = async (req, res) => {
         );
       }
 
-      const today = getTodayForGym(gym);
+      const validMemberships = member.active
+        ? await MembershipRecord.find({
+            tenantId,
+            memberId: member._id,
+            approvalStatus: "approved",
+            membershipEnd: { $gte: todayDate },
+          })
+            .sort({ membershipEnd: -1, membershipStart: -1, createdAt: -1 })
+            .session(session)
+            .lean()
+        : [];
+      let latestMembership =
+        selectLatestMembershipRecord(validMemberships, { today });
+      if (
+        !latestMembership &&
+        member.active &&
+        isValidMembershipDateRange(member) &&
+        member.membershipEnd >= todayDate
+      ) {
+        const currentPeriodRecorded = await MembershipRecord.exists({
+          tenantId,
+          memberId: member._id,
+          planId: member.plan,
+          membershipStart: member.membershipStart,
+          membershipEnd: member.membershipEnd,
+          approvalStatus: "approved",
+        }).session(session);
+
+        if (!currentPeriodRecorded) {
+          const currentPlan = await Plan.findOne({
+            _id: member.plan,
+            createdBy: tenantId,
+          })
+            .select("name price duration")
+            .session(session)
+            .lean();
+          const [legacyRecord] = await MembershipRecord.create(
+            [
+              {
+                tenantId,
+                memberId: member._id,
+                planId: member.plan,
+                planName: currentPlan?.name || "Existing membership",
+                durationMonths: currentPlan?.duration || 1,
+                amount: currentPlan?.price || 0,
+                membershipStart: member.membershipStart,
+                membershipEnd: member.membershipEnd,
+                rechargedAt: member.createdAt || member.membershipStart,
+                paymentStatus: "not_recorded",
+                approvalStatus: "approved",
+                source: "legacy",
+              },
+            ],
+            { session }
+          );
+          latestMembership = legacyRecord.toObject();
+        } else {
+          latestMembership = selectLatestMembershipRecord(
+            [
+              {
+                approvalStatus: "approved",
+                membershipStart: member.membershipStart,
+                membershipEnd: member.membershipEnd,
+              },
+            ],
+            { today }
+          );
+        }
+      }
       const { startDate, endDate } = calculateRechargeDates({
-        membershipEnd: member.membershipEnd,
-        membershipActive: member.active,
-        durationMonths: plan.duration,
+        membershipEnd: latestMembership?.membershipEnd,
+        membershipActive: member.active && Boolean(latestMembership),
+        durationDays: getPlanDurationDays(plan.duration),
         today,
       });
       const [record] = await MembershipRecord.create(
@@ -413,6 +505,7 @@ export const reviewRechargeRequest = async (req, res) => {
             membershipEnd: dateKeyToUtcDate(endDate),
             rechargedAt: new Date(),
             paymentStatus: "verified",
+            paymentMethod: "upi",
             approvalStatus: "approved",
             source: "recharge",
             transactionReference: request.transactionReference,
@@ -512,6 +605,190 @@ export const getMemberRechargeHistory = async (req, res) => {
       success: false,
       message: "Failed to fetch member recharge history",
     });
+  }
+};
+
+export const createAdminMemberRecharge = async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.memberId)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid member ID",
+    });
+  }
+
+  const { planId, paymentMethod, amount, transactionReference } = req.body;
+  const validPaymentMethods = [
+    "cash",
+    "upi",
+    "card",
+    "bank_transfer",
+    "other",
+  ];
+  const receivedAmount = Number(amount);
+  if (
+    !mongoose.isValidObjectId(planId) ||
+    !validPaymentMethods.includes(paymentMethod) ||
+    !Number.isFinite(receivedAmount) ||
+    receivedAmount < 0 ||
+    receivedAmount > 1_000_000_000 ||
+    (transactionReference !== undefined &&
+      (typeof transactionReference !== "string" ||
+        transactionReference.trim().length > 120))
+  ) {
+    return res.status(400).json({
+      success: false,
+      message: "Enter a valid plan, payment method, amount, and reference",
+    });
+  }
+
+  const tenantId = getRechargeTenantId(req.user);
+  let session;
+  try {
+    const helloResponse = await mongoose.connection.db
+      .admin()
+      .command({ hello: 1 });
+    if (!supportsMongoTransactions(helloResponse)) {
+      return res.status(503).json({
+        success: false,
+        message: mongoTransactionsUnavailableMessage,
+      });
+    }
+
+    session = await mongoose.startSession();
+    let createdRecord;
+    await session.withTransaction(async () => {
+      const member = await Member.findOne({
+        _id: req.params.memberId,
+        createdBy: tenantId,
+      }).session(session);
+      const plan = await Plan.findOne({
+        _id: planId,
+        createdBy: tenantId,
+        active: true,
+      }).session(session);
+      const gym = await Gym.findOne({ ownerId: tenantId }).session(session);
+
+      if (!member || !plan) {
+        const error = new Error(
+          "Member or selected membership plan is unavailable"
+        );
+        error.status = 404;
+        throw error;
+      }
+
+      const today = getTodayForGym(gym);
+      const todayDate = dateKeyToUtcDate(today);
+      const currentHistory = member.active
+        ? await MembershipRecord.find({
+            tenantId,
+            memberId: member._id,
+            approvalStatus: "approved",
+            membershipEnd: { $gte: todayDate },
+          })
+            .sort({ membershipEnd: -1, membershipStart: -1, createdAt: -1 })
+            .session(session)
+            .lean()
+        : [];
+      let previousMembership = selectLatestMembershipRecord(currentHistory, {
+        today,
+      });
+
+      if (
+        !previousMembership &&
+        member.active &&
+        isValidMembershipDateRange(member) &&
+        member.membershipEnd >= todayDate
+      ) {
+        const [legacyRecord] = await MembershipRecord.create(
+          [
+            {
+              tenantId,
+              memberId: member._id,
+              planId: member.plan,
+              planName: "Existing membership",
+              durationMonths: 1,
+              amount: 0,
+              membershipStart: member.membershipStart,
+              membershipEnd: member.membershipEnd,
+              rechargedAt: member.createdAt || member.membershipStart,
+              paymentStatus: "not_recorded",
+              approvalStatus: "approved",
+              source: "legacy",
+            },
+          ],
+          { session }
+        );
+        previousMembership = legacyRecord.toObject();
+      }
+
+      const { startDate, endDate } = calculateRechargeDates({
+        membershipEnd: previousMembership?.membershipEnd,
+        membershipActive: member.active && Boolean(previousMembership),
+        durationDays: getPlanDurationDays(plan.duration),
+        today,
+      });
+
+      const [record] = await MembershipRecord.create(
+        [
+          {
+            tenantId,
+            memberId: member._id,
+            planId: plan._id,
+            planName: plan.name,
+            durationMonths: plan.duration,
+            amount: receivedAmount,
+            membershipStart: dateKeyToUtcDate(startDate),
+            membershipEnd: dateKeyToUtcDate(endDate),
+            rechargedAt: new Date(),
+            paymentStatus: "verified",
+            paymentMethod,
+            approvalStatus: "approved",
+            source: "admin_recharge",
+            transactionReference: transactionReference?.trim() || undefined,
+            approvedBy: req.user.id,
+          },
+        ],
+        { session }
+      );
+
+      member.plan = plan._id;
+      member.membershipStart = dateKeyToUtcDate(startDate);
+      member.membershipEnd = dateKeyToUtcDate(endDate);
+      member.active = true;
+      await member.save({ session });
+      createdRecord = record;
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Member recharged successfully",
+      data: serializeMembershipRecord(createdRecord),
+    });
+  } catch (error) {
+    if (error.status) {
+      return res.status(error.status).json({
+        success: false,
+        message: error.message,
+      });
+    }
+    if (
+      error.code === 20 ||
+      error.codeName === "IllegalOperation" ||
+      /Transaction numbers are only allowed|replica set/i.test(error.message)
+    ) {
+      return res.status(503).json({
+        success: false,
+        message:
+          "Admin recharge requires MongoDB transactions. Configure MongoDB as a replica set and retry.",
+      });
+    }
+    console.error("Create admin member recharge error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to recharge member",
+    });
+  } finally {
+    if (session) await session.endSession();
   }
 };
 
