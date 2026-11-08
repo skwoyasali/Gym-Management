@@ -39,6 +39,10 @@ const memberSchema = new mongoose.Schema(
       trim: true,
       maxlength: 500,
     },
+    photoStorageKey: {
+      type: String,
+      select: false,
+    },
 
     plan: {
       type: mongoose.Schema.Types.ObjectId,

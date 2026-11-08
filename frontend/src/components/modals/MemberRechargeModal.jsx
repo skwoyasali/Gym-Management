@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Banknote,
   CircleAlert,
   Loader2,
   ReceiptText,
   X,
 } from "lucide-react";
 import { createAdminMemberRecharge } from "../../services/rechargeService";
+import MemberAvatar from "../common/MemberAvatar";
 
 const paymentMethods = [
   { value: "cash", label: "Cash" },
@@ -110,9 +110,11 @@ export default function MemberRechargeModal({
       >
         <header className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
-              <Banknote className="h-5 w-5" aria-hidden="true" />
-            </span>
+            <MemberAvatar
+              name={member.name}
+              photoUrl={member.photoUrl}
+              className="h-10 w-10 text-sm"
+            />
             <div>
               <p className="text-sm font-semibold text-indigo-600">Member payment</p>
               <h2

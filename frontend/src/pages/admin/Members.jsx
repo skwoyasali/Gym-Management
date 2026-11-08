@@ -1,5 +1,6 @@
 import AddMemberModal from "../../components/modals/AddMemberModal";
 import MemberRechargeModal from "../../components/modals/MemberRechargeModal";
+import MemberAvatar from "../../components/common/MemberAvatar";
 
 import { useEffect, useState } from "react";
 import {
@@ -361,9 +362,10 @@ export default function Members() {
                   <tr key={member._id} className="transition hover:bg-slate-50/80">
                     <td className="px-5 py-4 sm:px-6">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-700">
-                          {member.name?.trim().charAt(0).toUpperCase() || "?"}
-                        </div>
+                        <MemberAvatar
+                          name={member.name}
+                          photoUrl={member.photoUrl}
+                        />
                         <span className="font-medium text-slate-900">
                           {member.name}
                         </span>
@@ -643,16 +645,22 @@ export default function Members() {
             className="max-h-[min(85vh,800px)] w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl"
           >
             <header className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-              <div>
-                <p className="text-sm font-semibold text-indigo-600">
-                  Member profile
-                </p>
-                <h2
-                  id="member-recharge-history-title"
-                  className="mt-1 text-lg font-bold text-slate-900"
-                >
-                  {historyDetails.member.name}&apos;s recharge history
-                </h2>
+              <div className="flex items-center gap-3">
+                <MemberAvatar
+                  name={historyDetails.member.name}
+                  photoUrl={historyDetails.member.photoUrl}
+                />
+                <div>
+                  <p className="text-sm font-semibold text-indigo-600">
+                    Member profile
+                  </p>
+                  <h2
+                    id="member-recharge-history-title"
+                    className="mt-1 text-lg font-bold text-slate-900"
+                  >
+                    {historyDetails.member.name}&apos;s recharge history
+                  </h2>
+                </div>
               </div>
               <button
                 type="button"

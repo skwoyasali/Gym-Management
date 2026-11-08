@@ -12,6 +12,7 @@ import {
   dateKeyToUtcDate,
   selectLatestMembershipRecord,
 } from "../utils/membershipDates.js";
+import { serializeMemberPhoto } from "../utils/memberPhoto.js";
 
 const getCalendarDayDifference = (fromDateKey, toDateKey) => {
   const from = getUtcDayBounds(fromDateKey);
@@ -44,13 +45,16 @@ export const getTenantAttendance = async (req, res) => {
       tenantId,
       attendanceDate: { $gte: bounds.start, $lt: bounds.end },
     })
-      .populate("memberId", "name phone email")
+      .populate("memberId", "name phone email +photoStorageKey")
       .sort({ checkedInAt: -1 })
       .lean();
 
     return res.status(200).json({
       success: true,
-      data: attendance,
+      data: attendance.map((record) => ({
+        ...record,
+        memberId: serializeMemberPhoto(record.memberId),
+      })),
       date: dateKey,
     });
   } catch (error) {

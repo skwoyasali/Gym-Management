@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { CalendarDays, Clock3, Users } from "lucide-react";
 import { getTenantAttendance } from "../../services/attendanceService";
+import MemberAvatar from "../../components/common/MemberAvatar";
 
 const today = () => {
   const date = new Date();
@@ -112,8 +113,16 @@ export default function Attendance() {
               <tbody className="divide-y divide-slate-100">
                 {records.map((record) => (
                   <tr key={record._id} className="hover:bg-slate-50/80">
-                    <td className="px-5 py-4 font-medium text-slate-900 sm:px-6">
-                      {record.memberId?.name || "Member record unavailable"}
+                    <td className="px-5 py-4 sm:px-6">
+                      <div className="flex items-center gap-3">
+                        <MemberAvatar
+                          name={record.memberId?.name}
+                          photoUrl={record.memberId?.photoUrl}
+                        />
+                        <span className="font-medium text-slate-900">
+                          {record.memberId?.name || "Member record unavailable"}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-5 py-4 text-sm text-slate-600 sm:px-6">
                       {record.memberId?.phone || "—"}

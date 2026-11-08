@@ -9,6 +9,7 @@ import {
   ReceiptText,
   X,
 } from "lucide-react";
+import MemberAvatar from "../common/MemberAvatar";
 
 const accountLinks = [
   { label: "Dashboard", to: "/member/dashboard", icon: LayoutDashboard },
@@ -125,9 +126,15 @@ export default function MemberSidebar({
 
         <div className="border-t border-slate-800/80 p-4">
           <div className="mb-3 flex min-w-0 items-center gap-3 rounded-xl bg-slate-800/70 p-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-500/20 text-sm font-bold text-indigo-200">
-              {(user?.username || user?.name || "M").slice(0, 1).toUpperCase()}
-            </div>
+            <MemberAvatar
+              name={user?.username || user?.name}
+              photoUrl={
+                user?.memberId
+                  ? `/members/${user.memberId}/photo`
+                  : null
+              }
+              className="h-10 w-10 text-sm"
+            />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-slate-100">
                 {user?.username || user?.name || "Member"}

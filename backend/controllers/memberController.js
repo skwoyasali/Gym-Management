@@ -4,6 +4,15 @@ import Member from "../models/Member.js";
 import Plan from "../models/Plan.js";
 import User from "../models/User.js";
 import Attendance from "../models/Attendance.js";
+import {
+  deletePrivateImage,
+  getPrivateImagePath,
+  savePrivateImage,
+} from "../utils/privateImageStorage.js";
+import {
+  getMemberPhotoFilter,
+  serializeMemberPhoto,
+} from "../utils/memberPhoto.js";
 
 // GET ALL MEMBERS
 export const getMembers = async (req, res) => {
@@ -49,6 +58,7 @@ export const getMembers = async (req, res) => {
 
     const [members, total] = await Promise.all([
       Member.find(memberFilter)
+        .select("+photoStorageKey")
         .populate("plan", "name price duration")
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -60,7 +70,7 @@ export const getMembers = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      data: members,
+      data: members.map(serializeMemberPhoto),
       pagination: {
         page,
         limit,
@@ -81,6 +91,7 @@ export const getMembers = async (req, res) => {
 
 // ADD MEMBER
 export const addMember = async (req, res) => {
+  let savedPhoto;
   try {
     const {
       name,
@@ -126,6 +137,10 @@ export const addMember = async (req, res) => {
    
 
     // Create member
+    if (req.file) {
+      savedPhoto = await savePrivateImage(req.file.buffer, req.file.mimetype);
+    }
+
     const member = await Member.create({
       name: name.trim(),
       phone: phone.trim(),
@@ -133,6 +148,7 @@ export const addMember = async (req, res) => {
       gender,
       dateOfBirth: dateOfBirth || undefined,
       address: address?.trim(),
+      photoStorageKey: savedPhoto?.storageKey,
       active: false,
 
       // IMPORTANT:
@@ -140,6 +156,7 @@ export const addMember = async (req, res) => {
       // not from req.body.
       createdBy: tenantId,
     });
+    savedPhoto = null;
 
     const populatedMember = await member.populate(
       "plan",
@@ -149,9 +166,14 @@ export const addMember = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Member created successfully",
-      data: populatedMember,
+      data: serializeMemberPhoto(populatedMember),
     });
   } catch (error) {
+    if (savedPhoto) {
+      await deletePrivateImage(savedPhoto.storageKey).catch((cleanupError) =>
+        console.error("Remove unlinked member photo error:", cleanupError)
+      );
+    }
     console.error("Add member error:", error);
 
     // MongoDB duplicate key error
@@ -162,15 +184,16 @@ export const addMember = async (req, res) => {
       });
     }
 
-    return res.status(500).json({
+    return res.status(error.status || 500).json({
       success: false,
-      message: "Failed to create member",
+      message: error.status ? error.message : "Failed to create member",
     });
   }
 };
 
 // UPDATE MEMBER
 export const updateMember = async (req, res) => {
+  let savedPhoto;
   try {
     const { id } = req.params;
     const {
@@ -214,7 +237,7 @@ export const updateMember = async (req, res) => {
     const member = await Member.findOne({
       _id: id,
       createdBy: tenantId,
-    });
+    }).select("+photoStorageKey");
 
     if (!member) {
       return res.status(404).json({
@@ -265,6 +288,12 @@ export const updateMember = async (req, res) => {
     member.dateOfBirth = dateOfBirth || undefined;
     member.address = address?.trim() || undefined;
 
+    const previousPhotoStorageKey = member.photoStorageKey;
+    if (req.file) {
+      savedPhoto = await savePrivateImage(req.file.buffer, req.file.mimetype);
+      member.photoStorageKey = savedPhoto.storageKey;
+    }
+
     if (member.userId) {
       await User.updateOne(
         { _id: member.userId, tenantId },
@@ -273,14 +302,25 @@ export const updateMember = async (req, res) => {
     }
 
     await member.save();
+    savedPhoto = null;
+    if (req.file && previousPhotoStorageKey) {
+      await deletePrivateImage(previousPhotoStorageKey).catch((cleanupError) =>
+        console.error("Remove replaced member photo error:", cleanupError)
+      );
+    }
     await member.populate("plan", "name price duration");
 
     return res.status(200).json({
       success: true,
       message: "Member updated successfully",
-      data: member,
+      data: serializeMemberPhoto(member),
     });
   } catch (error) {
+    if (savedPhoto) {
+      await deletePrivateImage(savedPhoto.storageKey).catch((cleanupError) =>
+        console.error("Remove unlinked member photo error:", cleanupError)
+      );
+    }
     console.error("Update member error:", error);
 
     if (error.code === 11000) {
@@ -290,9 +330,49 @@ export const updateMember = async (req, res) => {
       });
     }
 
+    return res.status(error.status || 500).json({
+      success: false,
+      message: error.status ? error.message : "Failed to update member",
+    });
+  }
+};
+
+export const getMemberPhoto = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid member ID",
+      });
+    }
+
+    const memberFilter = getMemberPhotoFilter(req.user, req.params.id);
+    if (!memberFilter) {
+      return res.status(404).json({
+        success: false,
+        message: "Member photo not found",
+      });
+    }
+
+    const member = await Member.findOne(memberFilter)
+      .select("+photoStorageKey")
+      .lean();
+    const imagePath = getPrivateImagePath(member?.photoStorageKey);
+    if (!imagePath) {
+      return res.status(404).json({
+        success: false,
+        message: "Member photo not found",
+      });
+    }
+
+    return res.sendFile(imagePath, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  } catch (error) {
+    console.error("Get member photo error:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to update member",
+      message: "Failed to retrieve member photo",
     });
   }
 };
@@ -382,7 +462,7 @@ export const deleteMember = async (req, res) => {
     const member = await Member.findOneAndDelete({
       _id: id,
       createdBy: tenantId,
-    });
+    }).select("+photoStorageKey");
 
     // Member doesn't exist
     if (!member) {
@@ -396,6 +476,11 @@ export const deleteMember = async (req, res) => {
       await User.deleteOne({ _id: member.userId, tenantId });
     }
     await Attendance.deleteMany({ memberId: member._id, tenantId });
+    if (member.photoStorageKey) {
+      await deletePrivateImage(member.photoStorageKey).catch((cleanupError) =>
+        console.error("Remove deleted member photo error:", cleanupError)
+      );
+    }
 
     return res.status(200).json({
       success: true,

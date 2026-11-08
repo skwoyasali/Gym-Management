@@ -9,6 +9,7 @@ import {
   Loader2,
   X,
 } from "lucide-react";
+import MemberAvatar from "../../components/common/MemberAvatar";
 import {
   getRechargeProof,
   getRechargeRequests,
@@ -218,15 +219,21 @@ export default function RechargeRequests() {
               <li key={request._id} className="space-y-4 p-5 sm:p-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold text-slate-900">
-                        {request.memberId?.name || "Member"}
-                      </h3>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusClassName[request.status]}`}
-                      >
-                        {request.status}
-                      </span>
+                    <div className="flex items-center gap-3">
+                      <MemberAvatar
+                        name={request.memberId?.name}
+                        photoUrl={request.memberId?.photoUrl}
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-semibold text-slate-900">
+                          {request.memberId?.name || "Member"}
+                        </h3>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${statusClassName[request.status]}`}
+                        >
+                          {request.status}
+                        </span>
+                      </div>
                     </div>
                     <p className="mt-1 text-sm text-slate-500">
                       {request.memberId?.email || request.memberId?.phone || "Member contact unavailable"}
@@ -353,7 +360,12 @@ export default function RechargeRequests() {
             className="w-full max-w-2xl rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
           >
             <div className="flex items-center justify-between gap-4">
-              <div>
+              <div className="flex items-center gap-3">
+                <MemberAvatar
+                  name={proofRequest.memberId?.name}
+                  photoUrl={proofRequest.memberId?.photoUrl}
+                />
+                <div>
                 <h2
                   id="payment-proof-title"
                   className="font-semibold text-slate-900"
@@ -364,6 +376,7 @@ export default function RechargeRequests() {
                   {proofRequest.memberId?.name || "Member"} ·{" "}
                   {proofRequest.transactionReference || "No reference ID"}
                 </p>
+                </div>
               </div>
               <button
                 type="button"

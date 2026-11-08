@@ -3,6 +3,7 @@ import { Menu } from "lucide-react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import MemberSidebar from "../member/MemberSidebar";
+import MemberAvatar from "../common/MemberAvatar";
 import { logout as clearStoredAuth } from "../../services/authService";
 import { logout } from "../../store/authSlice";
 
@@ -42,9 +43,20 @@ export default function MemberLayout() {
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
           <span className="font-bold text-slate-900">GymPro</span>
-          <span className="ml-auto max-w-[50%] truncate text-sm text-slate-500">
-            {user?.username || user?.name || "Member"}
-          </span>
+          <div className="ml-auto flex min-w-0 items-center gap-2">
+            <MemberAvatar
+              name={user?.username || user?.name}
+              photoUrl={
+                user?.memberId
+                  ? `/members/${user.memberId}/photo`
+                  : null
+              }
+              className="h-8 w-8 text-xs"
+            />
+            <span className="max-w-[40vw] truncate text-sm text-slate-500">
+              {user?.username || user?.name || "Member"}
+            </span>
+          </div>
         </header>
         <main className="mx-auto w-full max-w-6xl p-4 sm:p-6 lg:p-8">
           <Outlet />

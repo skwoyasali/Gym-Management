@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BadgeCheck,
   CalendarDays,
+  Camera,
+  ImagePlus,
   Loader2,
   Mail,
   MapPin,
@@ -12,6 +14,10 @@ import {
   X,
 } from "lucide-react";
 import { createMember, updateMember } from "../../services/memberService";
+import MemberAvatar from "../common/MemberAvatar";
+
+const maxPhotoSize = 5 * 1024 * 1024;
+const allowedPhotoTypes = ["image/jpeg", "image/png", "image/webp"];
 
 const initialForm = {
   name: "",
@@ -48,10 +54,23 @@ const AddMemberModal = ({
   const [formData, setFormData] = useState(() => getMemberForm(member));
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState("");
+  const galleryInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    },
+    [photoPreview]
+  );
 
   const resetForm = () => {
     setFormData(initialForm);
     setErrors({});
+    setPhotoFile(null);
+    setPhotoPreview("");
   };
 
   const closeModal = useCallback(() => {
@@ -99,6 +118,24 @@ const AddMemberModal = ({
     }
   };
 
+  const handlePhotoChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!allowedPhotoTypes.includes(file.type) || file.size > maxPhotoSize) {
+      setErrors((previous) => ({
+        ...previous,
+        photo: "Choose a JPG, PNG, or WEBP image no larger than 5 MB.",
+      }));
+      return;
+    }
+
+    setErrors((previous) => ({ ...previous, photo: "", submit: "" }));
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
   const validate = () => {
     const newErrors = {};
 
@@ -138,9 +175,15 @@ const AddMemberModal = ({
         email: formData.email.trim(),
         address: formData.address.trim(),
       };
+      const requestData = new FormData();
+      Object.entries(memberData).forEach(([key, value]) => {
+        requestData.append(key, value);
+      });
+      if (photoFile) requestData.append("photo", photoFile);
+
       const response = member
-        ? await updateMember(member._id, memberData)
-        : await createMember(memberData);
+        ? await updateMember(member._id, requestData)
+        : await createMember(requestData);
 
       if (!response.data?.success) {
         setErrors({
@@ -233,6 +276,75 @@ const AddMemberModal = ({
             </div>
 
             <section aria-labelledby="member-details-heading">
+              <section
+                aria-labelledby="member-photo-heading"
+                className="mb-6 rounded-2xl border border-slate-200 p-4 sm:p-5"
+              >
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <MemberAvatar
+                    name={formData.name || member?.name}
+                    photoUrl={member?.photoUrl}
+                    previewUrl={photoPreview}
+                    className="h-20 w-20 text-2xl"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <h3
+                      id="member-photo-heading"
+                      className="text-sm font-semibold text-slate-900"
+                    >
+                      Member photo
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      JPG, PNG, or WEBP, up to 5 MB.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <input
+                        ref={galleryInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        aria-label="Choose a member photo"
+                        onChange={handlePhotoChange}
+                      />
+                      <input
+                        ref={cameraInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        capture="environment"
+                        className="sr-only"
+                        aria-label="Take a member photo"
+                        onChange={handlePhotoChange}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => galleryInputRef.current?.click()}
+                        disabled={loading}
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        <ImagePlus className="h-4 w-4" aria-hidden="true" />
+                        {photoFile || member?.photoUrl
+                          ? "Choose another"
+                          : "Choose photo"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        disabled={loading}
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:hidden"
+                      >
+                        <Camera className="h-4 w-4" aria-hidden="true" />
+                        Take photo
+                      </button>
+                    </div>
+                    {errors.photo && (
+                      <p className="mt-2 text-sm text-rose-600" role="alert">
+                        {errors.photo}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </section>
+
               <div className="mb-4 flex items-center gap-2">
                 <UserRound
                   className="h-4 w-4 text-indigo-600"

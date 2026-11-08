@@ -30,6 +30,7 @@ import {
   mongoTransactionsUnavailableMessage,
   supportsMongoTransactions,
 } from "../utils/mongoTransactions.js";
+import { serializeMemberPhoto } from "../utils/memberPhoto.js";
 
 const getTodayForGym = (gym) =>
   getDateKeyInTimeZone(
@@ -40,6 +41,9 @@ const proofUrl = (requestId) => `/recharges/requests/${requestId}/proof`;
 
 const serializeRequest = (request) => {
   const result = request.toObject ? request.toObject() : { ...request };
+  if (result.memberId?.name) {
+    result.memberId = serializeMemberPhoto(result.memberId);
+  }
   delete result.proofStorageKey;
   delete result.tenantId;
   delete result.reviewedBy;
@@ -239,7 +243,7 @@ export const getRechargeRequests = async (req, res) => {
     if (status !== "all") filter.status = status;
 
     const requests = await RechargeRequest.find(filter)
-      .populate("memberId", "name phone email")
+      .populate("memberId", "name phone email +photoStorageKey")
       .sort({ createdAt: -1 })
       .limit(200);
 
@@ -576,7 +580,7 @@ export const getMemberRechargeHistory = async (req, res) => {
       _id: req.params.memberId,
       createdBy: tenantId,
     })
-      .select("name")
+      .select("name +photoStorageKey")
       .lean();
 
     if (!member) {
@@ -595,7 +599,7 @@ export const getMemberRechargeHistory = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        member,
+        member: serializeMemberPhoto(member),
         history: history.map(serializeMembershipRecord),
       },
     });
