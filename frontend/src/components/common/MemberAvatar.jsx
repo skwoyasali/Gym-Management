@@ -45,7 +45,9 @@ export default function MemberAvatar({
 
   const imageSource =
     previewUrl ||
-    (authenticatedPhoto?.photoUrl === photoUrl ? authenticatedPhoto.src : "");
+    (authenticatedPhoto && authenticatedPhoto.photoUrl === photoUrl
+      ? authenticatedPhoto.src
+      : "");
   const imageFailed = failedSource === imageSource;
   const initials = name?.trim().charAt(0).toUpperCase() || "?";
 
