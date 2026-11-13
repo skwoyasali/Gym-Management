@@ -17,6 +17,7 @@ const gymSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
 
     gymName: {
@@ -59,6 +60,17 @@ const gymSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+    },
+    accountStatus: {
+      type: String,
+      enum: ["active", "inactive"],
+      default: "active",
+      index: true,
+    },
+    expiresAt: {
+      type: Date,
+      default: null,
+      index: true,
     },
     timezone: {
       type: String,

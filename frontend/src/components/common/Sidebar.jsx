@@ -4,6 +4,7 @@ import {
   BarChart3,
   Dumbbell,
   LayoutDashboard,
+  CreditCard,
   ReceiptText,
   Settings,
   Users,
@@ -16,6 +17,7 @@ const menuItems = [
   { name: "Attendance", path: "/admin/attendance", icon: BarChart3 },
   { name: "Plans", path: "/admin/plans", icon: Dumbbell },
   { name: "Recharge Requests", path: "/admin/recharge-requests", icon: ReceiptText },
+  { name: "GymPro Billing", path: "/admin/billing", icon: CreditCard },
   { name: "Settings", path: "/admin/settings", icon: Settings },
 ];
 

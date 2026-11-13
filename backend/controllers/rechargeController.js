@@ -31,6 +31,7 @@ import {
   supportsMongoTransactions,
 } from "../utils/mongoTransactions.js";
 import { serializeMemberPhoto } from "../utils/memberPhoto.js";
+import { createGymBilling } from "../utils/createGymBilling.js";
 
 const getTodayForGym = (gym) =>
   getDateKeyInTimeZone(
@@ -519,6 +520,7 @@ export const reviewRechargeRequest = async (req, res) => {
         ],
         { session }
       );
+      await createGymBilling(record, tenantId, session);
 
       member.plan = plan._id;
       member.membershipStart = dateKeyToUtcDate(startDate);
@@ -754,6 +756,7 @@ export const createAdminMemberRecharge = async (req, res) => {
         ],
         { session }
       );
+      await createGymBilling(record, tenantId, session);
 
       member.plan = plan._id;
       member.membershipStart = dateKeyToUtcDate(startDate);

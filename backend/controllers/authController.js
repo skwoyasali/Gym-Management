@@ -170,13 +170,17 @@ export const login = async (req, res) => {
     }
 
     const role = user.role;
-    if (!["admin", "member"].includes(role)) {
+    if (!["admin", "member", "super_admin"].includes(role)) {
       return res.status(403).json({
         message: "This account role is not supported",
       });
     }
 
-    if (accountType && accountType !== role) {
+    if (
+      accountType &&
+      accountType !== role &&
+      !(accountType === "admin" && role === "super_admin")
+    ) {
       return res.status(403).json({
         message:
           role === "member"
@@ -188,20 +192,52 @@ export const login = async (req, res) => {
     const tenantId =
       role === "admin"
         ? (user.tenantId || user._id).toString()
-        : user.tenantId?.toString();
-    if (!tenantId || (role === "member" && !user.memberId)) {
+        : role === "member"
+          ? user.tenantId?.toString()
+          : undefined;
+    if (!tenantId && role !== "super_admin") {
+      return res.status(403).json({
+        message: "This account is not linked to an active gym membership",
+      });
+    }
+    if (role === "member" && !user.memberId) {
       return res.status(403).json({
         message: "This account is not linked to an active gym membership",
       });
     }
 
-    const gym = await Gym.findOne({ ownerId: tenantId })
-      .select("gymName")
-      .lean();
+    const gym =
+      role === "super_admin"
+        ? null
+        : await Gym.findOne({ ownerId: tenantId })
+            .select("gymName accountStatus expiresAt")
+            .lean();
+    if (gym && gym.expiresAt && gym.expiresAt <= new Date()) {
+      if (gym.accountStatus !== "inactive") {
+        await Gym.updateOne(
+          { _id: gym._id, expiresAt: { $lte: new Date() } },
+          { $set: { accountStatus: "inactive" } }
+        );
+      }
+      return res.status(403).json({
+        success: false,
+        code: "GYM_ACCOUNT_EXPIRED",
+        message:
+          "Your gym account has expired. Contact GymPro support or your Super Admin to restore access.",
+      });
+    }
+    if (gym?.accountStatus === "inactive") {
+      return res.status(403).json({
+        success: false,
+        code: "GYM_ACCOUNT_INACTIVE",
+        message:
+          "Your gym account is inactive. Contact GymPro support or your Super Admin to restore access.",
+      });
+    }
 
     const token = createToken({
       userId: user._id.toString(),
-      tenantId,
+      tenantId: tenantId || null,
       role,
       memberId: role === "member" ? user.memberId.toString() : null,
     });
@@ -210,7 +246,7 @@ export const login = async (req, res) => {
 
     delete userData.password;
     userData.role = role;
-    userData.tenantId = tenantId;
+    userData.tenantId = tenantId || null;
     userData.tenantName = gym?.gymName || null;
     userData.isProfileCompleted =
       role === "member" ? true : user.isProfileCompleted;

@@ -10,7 +10,9 @@
     "dev": "nodemon server.js",
     "migrate:member-phone-index": "node scripts/migrateMemberPhoneIndex.js",
     "migrate:plan-index": "node scripts/migratePlanIndex.js",
-    "migrate:recharge-indexes": "node scripts/migrateRechargeIndexes.js"
+    "migrate:recharge-indexes": "node scripts/migrateRechargeIndexes.js",
+    "create:super-admin": "node scripts/createSuperAdmin.js",
+    "reset:super-admin-password": "node scripts/resetSuperAdminPassword.js"
   },
   "keywords": [],
   "author": "",

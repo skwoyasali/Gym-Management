@@ -37,6 +37,34 @@ test("recharge role guard allows only explicitly configured roles", () => {
   assert.equal(nextCalled, false);
 });
 
+test("Super Admin role guard rejects Gym Admin and member accounts", () => {
+  const middleware = requireRole("super_admin");
+  const response = {
+    statusCode: 200,
+    body: null,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    json(body) {
+      this.body = body;
+      return this;
+    },
+  };
+  let nextCalled = false;
+
+  middleware({ user: { role: "admin" } }, response, () => {
+    nextCalled = true;
+  });
+  assert.equal(response.statusCode, 403);
+  assert.equal(nextCalled, false);
+
+  middleware({ user: { role: "super_admin" } }, response, () => {
+    nextCalled = true;
+  });
+  assert.equal(nextCalled, true);
+});
+
 test("member data scopes come only from the authenticated identity", async () => {
   const {
     getOwnMemberFilter,

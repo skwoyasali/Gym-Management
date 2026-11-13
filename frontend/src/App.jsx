@@ -18,6 +18,7 @@ import MemberCheckIn from "./pages/member/MemberCheckIn";
 import Landing from "./pages/Landing";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import {
+  BillingRoute,
   PlansRoute,
   RechargeRequestsRoute,
   SettingsRoute,
@@ -26,6 +27,14 @@ import {
   RechargeHistoryRoute,
   RechargePlanRoute,
 } from "./routes/MemberLazyPages";
+import SuperAdminLayout from "./components/layout/SuperAdminLayout";
+import {
+  SuperAdminBillingRoute,
+  SuperAdminDashboardRoute,
+  SuperAdminGymDetailsRoute,
+  SuperAdminGymsRoute,
+  SuperAdminPricingRoute,
+} from "./routes/SuperAdminLazyPages";
 // import Members from "./pages/admin/Members";
 // import Attendance from "./pages/admin/Attendance";
 // import Payments from "./pages/admin/Payments";
@@ -95,8 +104,44 @@ const router = createBrowserRouter([
         element: <RechargeRequestsRoute />,
       },
       {
+        path: "billing",
+        element: <BillingRoute />,
+      },
+      {
         path: "settings",
         element: <SettingsRoute />,
+      },
+    ],
+  },
+
+  {
+    path: "/super-admin",
+    element: (
+      <ProtectedRoute allowedRoles={["super_admin"]}>
+        <SuperAdminLayout />
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <Navigate to="dashboard" replace /> },
+      {
+        path: "dashboard",
+        element: <SuperAdminDashboardRoute />,
+      },
+      {
+        path: "gyms",
+        element: <SuperAdminGymsRoute />,
+      },
+      {
+        path: "gyms/:id",
+        element: <SuperAdminGymDetailsRoute />,
+      },
+      {
+        path: "billing",
+        element: <SuperAdminBillingRoute />,
+      },
+      {
+        path: "pricing",
+        element: <SuperAdminPricingRoute />,
       },
     ],
   },

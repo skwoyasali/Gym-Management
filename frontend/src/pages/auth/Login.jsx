@@ -51,6 +51,8 @@ export default function Login() {
 
       if (data.userData.role === "member") {
         navigate("/member/check-in");
+      } else if (data.userData.role === "super_admin") {
+        navigate("/super-admin/dashboard");
       } else if (!data.userData.isProfileCompleted) {
         navigate("/complete-profile");
       } else {
