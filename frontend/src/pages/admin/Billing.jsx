@@ -15,11 +15,16 @@ export default function Billing() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
+  const [filters, setFilters] = useState({
+    status: "all",
+    month: "",
+    year: "",
+  });
 
   const load = () => {
     setLoading(true);
     setError("");
-    getGymBilling({ page, limit: 20 })
+    getGymBilling({ page, limit: 20, ...filters })
       .then((response) => setData(response.data.data))
       .catch((requestError) =>
         setError(
@@ -31,7 +36,7 @@ export default function Billing() {
   };
 
   useEffect(() => {
-    getGymBilling({ page, limit: 20 })
+    getGymBilling({ page, limit: 20, ...filters })
       .then((response) => setData(response.data.data))
       .catch((requestError) =>
         setError(
@@ -40,7 +45,19 @@ export default function Billing() {
         )
       )
       .finally(() => setLoading(false));
-  }, [page]);
+  }, [page, filters]);
+
+  const changeFilter = (key, value) => {
+    setLoading(true);
+    setError("");
+    setPage(1);
+    setFilters((current) => ({ ...current, [key]: value }));
+  };
+
+  const years = [...new Set([new Date().getFullYear(), ...(data?.years || [])])]
+    .sort((first, second) => second - first);
+  const hasFilters =
+    filters.status !== "all" || filters.month !== "" || filters.year !== "";
 
   const cards = data
     ? [
@@ -125,6 +142,69 @@ export default function Billing() {
         </section>
       )}
 
+      <section
+        aria-label="Filter billing transactions"
+        className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto]"
+      >
+        <label className="text-xs font-medium text-slate-500">
+          Payment status
+          <select
+            value={filters.status}
+            onChange={(event) => changeFilter("status", event.target.value)}
+            className="mt-1.5 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-indigo-500"
+          >
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+          </select>
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          Month
+          <select
+            value={filters.month}
+            onChange={(event) => changeFilter("month", event.target.value)}
+            className="mt-1.5 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-indigo-500"
+          >
+            <option value="">All months</option>
+            {Array.from({ length: 12 }, (_, index) => (
+              <option key={index + 1} value={index + 1}>
+                {new Intl.DateTimeFormat("en", { month: "long" }).format(
+                  new Date(2024, index, 1)
+                )}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-medium text-slate-500">
+          Year
+          <select
+            value={filters.year}
+            onChange={(event) => changeFilter("year", event.target.value)}
+            className="mt-1.5 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-indigo-500"
+          >
+            <option value="">All years</option>
+            {years.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          disabled={!hasFilters}
+          onClick={() => {
+            setLoading(true);
+            setError("");
+            setPage(1);
+            setFilters({ status: "all", month: "", year: "" });
+          }}
+          className="self-end rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Clear filters
+        </button>
+      </section>
+
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-5 py-4">
           <h2 className="font-semibold text-slate-900">Billing transactions</h2>
@@ -178,9 +258,13 @@ export default function Billing() {
         ) : (
           <div className="p-10 text-center">
             <CreditCard className="mx-auto h-8 w-8 text-slate-300" aria-hidden="true" />
-            <p className="mt-3 font-medium text-slate-700">No GymPro bills yet</p>
+            <p className="mt-3 font-medium text-slate-700">
+              {hasFilters ? "No bills match these filters" : "No GymPro bills yet"}
+            </p>
             <p className="mt-1 text-sm text-slate-500">
-              A bill is generated when a membership is purchased or recharged.
+              {hasFilters
+                ? "Try changing the status, month, or year."
+                : "A bill is generated when a membership is purchased or recharged."}
             </p>
           </div>
         )}
@@ -193,7 +277,10 @@ export default function Billing() {
               <button
                 type="button"
                 disabled={page <= 1}
-                onClick={() => setPage((current) => current - 1)}
+                onClick={() => {
+                  setLoading(true);
+                  setPage((current) => current - 1);
+                }}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40"
               >
                 Previous
@@ -201,7 +288,10 @@ export default function Billing() {
               <button
                 type="button"
                 disabled={page >= data.pagination.totalPages}
-                onClick={() => setPage((current) => current + 1)}
+                onClick={() => {
+                  setLoading(true);
+                  setPage((current) => current + 1);
+                }}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 disabled:opacity-40"
               >
                 Next

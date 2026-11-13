@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import {
   ArrowRight,
   Building2,
@@ -10,6 +11,7 @@ import {
   UserRound,
 } from "lucide-react";
 import api from "../../services/api";
+import { updateUser } from "../../store/authSlice";
 
 const initialFormData = {
   gymName: "",
@@ -26,6 +28,8 @@ const inputClassName =
 
 export default function CompleteProfile() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const currentUser = useSelector((state) => state.auth.user);
 
   const [formData, setFormData] = useState(initialFormData);
   const [loading, setLoading] = useState(false);
@@ -45,7 +49,7 @@ export default function CompleteProfile() {
 
     try {
       setLoading(true);
-      await api.post("/gym/profile", {
+      const response = await api.post("/gym/profile", {
         ...formData,
         gymName: formData.gymName.trim(),
         ownerName: formData.ownerName.trim(),
@@ -56,6 +60,13 @@ export default function CompleteProfile() {
         pincode: formData.pincode.trim(),
       });
 
+      const updatedUser = {
+        ...currentUser,
+        tenantName: response.data.gym.gymName,
+        isProfileCompleted: true,
+      };
+      localStorage.setItem("user", JSON.stringify(updatedUser));
+      dispatch(updateUser(updatedUser));
       navigate("/admin/dashboard", { replace: true });
     } catch (requestError) {
       setError(

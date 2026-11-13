@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { BadgeCheck, CalendarDays, CircleAlert, CreditCard } from "lucide-react";
+import {
+  BadgeCheck,
+  CalendarClock,
+  CalendarDays,
+  CircleAlert,
+  CreditCard,
+} from "lucide-react";
 import { getMyAttendance } from "../../services/attendanceService";
 
 const formatDateKey = (dateKey) => {
@@ -22,6 +28,7 @@ const membershipStatus = {
 
 export default function MemberDashboard() {
   const [membership, setMembership] = useState(null);
+  const [upcomingMembership, setUpcomingMembership] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -29,7 +36,10 @@ export default function MemberDashboard() {
     let active = true;
     getMyAttendance()
       .then((response) => {
-        if (active) setMembership(response.data.membership);
+        if (active) {
+          setMembership(response.data.membership);
+          setUpcomingMembership(response.data.upcomingMembership);
+        }
       })
       .catch((requestError) => {
         if (active) {
@@ -135,6 +145,39 @@ export default function MemberDashboard() {
           </p>
         </article>
       </section>
+
+      {upcomingMembership && (
+        <section
+          aria-label="Next upcoming recharge plan"
+          className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm sm:p-6"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+              <CalendarClock className="h-5 w-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-indigo-600">
+                NEXT UPCOMING RECHARGE
+              </p>
+              <h2 className="mt-1 text-xl font-bold text-slate-900">
+                {upcomingMembership.planName}
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {upcomingMembership.durationMonths}{" "}
+                {upcomingMembership.durationMonths === 1 ? "month" : "months"} ·
+                starts {formatDateKey(upcomingMembership.startDate)}
+              </p>
+              <p className="mt-3 text-sm font-medium text-slate-700">
+                {upcomingMembership.daysUntilStart === 0
+                  ? "Starts today"
+                  : `Starts in ${upcomingMembership.daysUntilStart} ${
+                      upcomingMembership.daysUntilStart === 1 ? "day" : "days"
+                    }`}
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

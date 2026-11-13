@@ -75,7 +75,13 @@ export const getMemberAttendance = async (req, res) => {
     const today = getDateKeyInTimeZone(new Date(), timeZone);
 
     const todayDate = dateKeyToUtcDate(today);
-    const [attendance, member, validMemberships, hasMembershipHistory] =
+    const [
+      attendance,
+      member,
+      validMemberships,
+      nextUpcomingMembership,
+      hasMembershipHistory,
+    ] =
       await Promise.all([
         Attendance.find({
           tenantId: req.user.tenantId,
@@ -99,6 +105,15 @@ export const getMemberAttendance = async (req, res) => {
           membershipEnd: { $gte: todayDate },
         })
           .sort({ membershipEnd: -1, membershipStart: -1, createdAt: -1 })
+          .lean(),
+        MembershipRecord.findOne({
+          tenantId: req.user.tenantId,
+          memberId: req.user.memberId,
+          approvalStatus: "approved",
+          membershipStart: { $gt: todayDate },
+          membershipEnd: { $gte: todayDate },
+        })
+          .sort({ membershipStart: 1, membershipEnd: 1, createdAt: 1 })
           .lean(),
         MembershipRecord.exists({
           tenantId: req.user.tenantId,
@@ -171,6 +186,25 @@ export const getMemberAttendance = async (req, res) => {
         daysUntilStart: Math.max(0, daysUntilStart),
         status: membershipStatus,
       },
+      upcomingMembership: nextUpcomingMembership
+        ? {
+            planName: nextUpcomingMembership.planName,
+            durationMonths: nextUpcomingMembership.durationMonths,
+            startDate: nextUpcomingMembership.membershipStart
+              .toISOString()
+              .slice(0, 10),
+            endDate: nextUpcomingMembership.membershipEnd
+              .toISOString()
+              .slice(0, 10),
+            daysUntilStart: Math.max(
+              0,
+              getCalendarDayDifference(
+                today,
+                nextUpcomingMembership.membershipStart.toISOString().slice(0, 10)
+              )
+            ),
+          }
+        : null,
     });
   } catch (error) {
     console.error("Get member attendance error:", error);

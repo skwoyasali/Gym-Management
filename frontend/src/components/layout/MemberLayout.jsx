@@ -9,6 +9,7 @@ import { logout } from "../../store/authSlice";
 
 export default function MemberLayout() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [desktopSidebarCollapsed, setDesktopSidebarCollapsed] = useState(false);
   const user = useSelector((state) => state.auth.user);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -28,10 +29,38 @@ export default function MemberLayout() {
       <MemberSidebar
         user={user}
         mobileOpen={mobileSidebarOpen}
+        desktopCollapsed={desktopSidebarCollapsed}
         onClose={closeMobileSidebar}
         onLogout={handleLogout}
       />
-      <div className="min-w-0 flex-1 lg:ml-[250px]">
+      <div
+        className={`min-w-0 flex-1 transition-[margin] duration-300 ${
+          desktopSidebarCollapsed ? "lg:ml-0" : "lg:ml-[250px]"
+        }`}
+      >
+        <header className="sticky top-0 z-30 hidden h-16 items-center gap-4 border-b border-slate-200 bg-white/95 px-6 shadow-sm backdrop-blur lg:flex">
+          <button
+            type="button"
+            onClick={() =>
+              setDesktopSidebarCollapsed((collapsed) => !collapsed)
+            }
+            aria-label={
+              desktopSidebarCollapsed
+                ? "Show member sidebar"
+                : "Hide member sidebar"
+            }
+            aria-expanded={!desktopSidebarCollapsed}
+            className="rounded-xl p-2 text-slate-500 transition hover:bg-indigo-50 hover:text-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-100"
+          >
+            <Menu className="h-5 w-5" aria-hidden="true" />
+          </button>
+          <h1
+            className="min-w-0 truncate text-lg font-bold tracking-tight text-slate-900"
+            title={user?.tenantName || "GymPro"}
+          >
+            {user?.tenantName || "GymPro"}
+          </h1>
+        </header>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 lg:hidden">
           <button
             type="button"

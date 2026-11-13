@@ -20,6 +20,7 @@ const accountLinks = [
 export default function MemberSidebar({
   user,
   mobileOpen,
+  desktopCollapsed,
   onClose,
   onLogout,
 }) {
@@ -79,8 +80,10 @@ export default function MemberSidebar({
         />
       )}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[min(16rem,85vw)] flex-col bg-slate-900 text-white shadow-2xl transition-transform duration-300 lg:w-[250px] lg:translate-x-0 lg:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[min(16rem,85vw)] flex-col bg-slate-900 text-white shadow-2xl transition-transform duration-300 lg:w-[250px] lg:shadow-none ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
+        } ${
+          desktopCollapsed ? "lg:-translate-x-full" : "lg:translate-x-0"
         }`}
       >
         <div className="flex h-20 items-center justify-between border-b border-slate-800/80 px-5">

@@ -34,19 +34,50 @@ export const getGymBilling = async (req, res) => {
     const tenantId = getTenantId(req.user);
     const page = Math.max(Number(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
-    const [gym, pricing, bills, billCount, totals] = await Promise.all([
+    const status = String(req.query.status || "all");
+    const month = req.query.month ? Number(req.query.month) : null;
+    const year = req.query.year ? Number(req.query.year) : null;
+    if (
+      !["all", "pending", "paid"].includes(status) ||
+      (month !== null && (!Number.isInteger(month) || month < 1 || month > 12)) ||
+      (year !== null &&
+        (!Number.isInteger(year) || year < 2000 || year > new Date().getUTCFullYear() + 1))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid billing status, month, or year filter",
+      });
+    }
+
+    const filter = { tenantId };
+    if (status !== "all") filter.status = status;
+    if (year !== null) {
+      filter.purchasedAt = {
+        $gte: new Date(Date.UTC(year, month ? month - 1 : 0, 1)),
+        $lt: month
+          ? new Date(Date.UTC(year, month, 1))
+          : new Date(Date.UTC(year + 1, 0, 1)),
+      };
+    } else if (month !== null) {
+      filter.$expr = { $eq: [{ $month: "$purchasedAt" }, month] };
+    }
+
+    const tenantObjectId = new mongoose.Types.ObjectId(tenantId);
+    const summaryFilter = { ...filter };
+    delete summaryFilter.status;
+    const [gym, pricing, bills, billCount, totals, billingYears] = await Promise.all([
       Gym.findOne({ ownerId: tenantId }).select("gymName").lean(),
       PlatformPricing.findById("global").lean(),
-      GymBilling.find({ tenantId })
+      GymBilling.find(filter)
         .populate("memberId", "name")
         .populate("paymentId", "amount paymentDate reference")
         .sort({ purchasedAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),
-      GymBilling.countDocuments({ tenantId }),
+      GymBilling.countDocuments(filter),
       GymBilling.aggregate([
-        { $match: { tenantId: new mongoose.Types.ObjectId(tenantId) } },
+        { $match: { ...summaryFilter, tenantId: tenantObjectId } },
         {
           $group: {
             _id: "$status",
@@ -54,6 +85,15 @@ export const getGymBilling = async (req, res) => {
             count: { $sum: 1 },
           },
         },
+      ]),
+      GymBilling.aggregate([
+        { $match: { tenantId: tenantObjectId } },
+        {
+          $group: {
+            _id: { $year: "$purchasedAt" },
+          },
+        },
+        { $sort: { _id: -1 } },
       ]),
     ]);
 
@@ -70,6 +110,8 @@ export const getGymBilling = async (req, res) => {
         outstandingBalance: roundCurrency(amounts.pending || 0),
         billableMemberships: totals.reduce((sum, item) => sum + item.count, 0),
         bills,
+        years: billingYears.map((item) => item._id),
+        filters: { status, month, year },
         pagination: {
           page,
           limit,
